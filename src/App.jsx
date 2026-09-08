@@ -16,6 +16,8 @@ import {
   KeyRound,
   LogIn,
   Wifi,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 
@@ -279,6 +281,7 @@ export default function App() {
 
       <nav className="max-w-3xl mx-auto flex gap-1 px-4 mt-4 border-b border-emerald-800">
         <TabButton icon={<ClipboardList size={16} />} label="Picks" active={tab === "picks"} onClick={() => setTab("picks")} />
+        <TabButton icon={<Eye size={16} />} label="Overzicht" active={tab === "overzicht"} onClick={() => setTab("overzicht")} />
         <TabButton icon={<Trophy size={16} />} label="Stand" active={tab === "stand"} onClick={() => setTab("stand")} />
         <TabButton icon={<Shield size={16} />} label="Reglement" active={tab === "reglement"} onClick={() => setTab("reglement")} />
         <TabButton icon={<Users size={16} />} label="Beheer" active={tab === "beheer"} onClick={() => setTab("beheer")} />
@@ -305,6 +308,10 @@ export default function App() {
             onLogin={loginAs}
             showToast={showToast}
           />
+        )}
+
+        {tab === "overzicht" && (
+          <OverzichtTab week={currentWeek} weekGames={weekGames} weekNum={activeWeek} players={players} picks={picks} />
         )}
 
         {tab === "stand" && (
@@ -394,7 +401,7 @@ function Header({ weekNums, activeWeek, setActiveWeek, me, onLogout }) {
   const idx = weekNums.indexOf(activeWeek);
   return (
     <header className="border-b border-emerald-800 bg-emerald-900/40">
-      <div className="max-w-3xl mx-auto px-4 py-5 flex items-center justify-between">
+      <div className="max-w-3xl mx-auto px-4 py-5 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: "0.03em" }} className="text-4xl text-amber-400 leading-none">
             NFL Pronostiek
@@ -727,6 +734,73 @@ function RegisterForm({ onRegister }) {
    Stand (leaderboard) tab
 --------------------------------------------------------------- */
 
+/* ---------------------------------------------------------------
+   Overzicht tab — wie koos wat, pas zichtbaar na de deadline
+--------------------------------------------------------------- */
+
+function OverzichtTab({ week, weekGames, weekNum, players, picks }) {
+  if (!week || weekGames.length === 0) {
+    return <EmptyState title="Geen wedstrijden voor deze week" body="Er is nog niets om te tonen." />;
+  }
+
+  const locked = isLocked(week);
+  const weekPicks = picks.filter((p) => p.week_num === weekNum);
+  const submittedPlayerIds = new Set(weekPicks.map((p) => p.player_id));
+
+  if (!locked) {
+    return (
+      <div className="space-y-4">
+        <div className="border border-emerald-800 rounded-md p-4 bg-emerald-900/30 flex items-center gap-2 text-sm text-emerald-300">
+          <EyeOff size={16} className="text-amber-400 shrink-0" />
+          Ieders keuzes voor Week {weekNum} worden pas zichtbaar zodra de deadline ({fmtDeadline(week.deadline)}) verstreken is — zo kan niemand nog overschrijven van een ander.
+        </div>
+        <div className="text-sm text-emerald-400">
+          {submittedPlayerIds.size} van {players.length} speler(s) hebben hun picks al ingediend.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm border border-emerald-800 rounded-md overflow-hidden">
+        <thead className="bg-emerald-900/60 text-emerald-400 text-xs uppercase tracking-wide">
+          <tr>
+            <th className="text-left px-3 py-2">Wedstrijd</th>
+            {players.map((p) => (
+              <th key={p.id} className="text-left px-3 py-2">{p.name}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {weekGames.map((g) => (
+            <tr key={g.id} className="border-t border-emerald-800">
+              <td className="px-3 py-2 text-emerald-300 whitespace-nowrap">
+                {g.away_team.split(" ").slice(-1)} @ {g.home_team.split(" ").slice(-1)}
+              </td>
+              {players.map((p) => {
+                const pick = weekPicks.find((x) => x.player_id === p.id && x.game_id === g.id);
+                return (
+                  <td key={p.id} className="px-3 py-2">
+                    {pick ? (
+                      <span className="flex items-center gap-1">
+                        {pick.picked_team.split(" ").slice(-1)}
+                        {pick.is_double && <Flame size={12} className="text-amber-400" />}
+                      </span>
+                    ) : (
+                      <span className="text-emerald-600">–</span>
+                    )}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function StandTab({ players, weeks, games, picks, rootingResults }) {
   if (players.length === 0) {
     return <EmptyState title="Nog geen spelers" body="Zodra iemand zich aanmeldt via de Picks-tab, verschijnt hier de stand." />;
@@ -754,8 +828,8 @@ function StandTab({ players, weeks, games, picks, rootingResults }) {
 
   return (
     <div>
-      <div className="border border-emerald-800 rounded-md overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="border border-emerald-800 rounded-md overflow-x-auto">
+        <table className="w-full text-sm min-w-[420px]">
           <thead className="bg-emerald-900/60 text-emerald-400 text-xs uppercase tracking-wide">
             <tr>
               <th className="text-left px-3 py-2">#</th>
@@ -902,13 +976,13 @@ function BeheerTab({ weeks, games, players, rootingTeams, rootingResults, onAddW
         </div>
         <div className="space-y-2">
           {draftGames.map((g, idx) => (
-            <div key={idx} className="flex gap-2 items-center">
-              <select value={g.away} onChange={(e) => updateDraftGame(idx, "away", e.target.value)} className="flex-1 bg-emerald-950 border border-emerald-700 rounded px-2 py-1.5 text-xs">
+            <div key={idx} className="flex flex-wrap gap-2 items-center">
+              <select value={g.away} onChange={(e) => updateDraftGame(idx, "away", e.target.value)} className="flex-1 min-w-[140px] bg-emerald-950 border border-emerald-700 rounded px-2 py-1.5 text-xs">
                 <option value="">Uitploeg…</option>
                 {TEAMS.map((t) => <option key={t}>{t}</option>)}
               </select>
               <span className="text-emerald-500 text-xs">@</span>
-              <select value={g.home} onChange={(e) => updateDraftGame(idx, "home", e.target.value)} className="flex-1 bg-emerald-950 border border-emerald-700 rounded px-2 py-1.5 text-xs">
+              <select value={g.home} onChange={(e) => updateDraftGame(idx, "home", e.target.value)} className="flex-1 min-w-[140px] bg-emerald-950 border border-emerald-700 rounded px-2 py-1.5 text-xs">
                 <option value="">Thuisploeg…</option>
                 {TEAMS.map((t) => <option key={t}>{t}</option>)}
               </select>
@@ -993,8 +1067,8 @@ function ResultRow({ game, onSave }) {
   const [away, setAway] = useState(game.away_score ?? "");
 
   return (
-    <div className="flex items-center gap-2 text-sm">
-      <span className="flex-1">{game.away_team} @ {game.home_team}</span>
+    <div className="flex flex-wrap items-center gap-2 text-sm">
+      <span className="flex-1 min-w-[120px] truncate">{game.away_team} @ {game.home_team}</span>
       <input type="number" value={away} onChange={(e) => setAway(e.target.value)} placeholder="Uit" className="w-16 bg-emerald-950 border border-emerald-700 rounded px-2 py-1 text-xs" />
       <span className="text-emerald-500">–</span>
       <input type="number" value={home} onChange={(e) => setHome(e.target.value)} placeholder="Thuis" className="w-16 bg-emerald-950 border border-emerald-700 rounded px-2 py-1 text-xs" />
