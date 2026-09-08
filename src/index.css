@@ -7,6 +7,10 @@ html, body, #root {
   width: 100%;
 }
 
+.overflow-x-auto {
+  -webkit-overflow-scrolling: touch;
+}
+
 body {
   font-family: "Inter", sans-serif;
   margin: 0;

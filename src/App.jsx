@@ -279,7 +279,7 @@ export default function App() {
         onLogout={logout}
       />
 
-      <nav className="max-w-3xl mx-auto flex gap-1 px-4 mt-4 border-b border-emerald-800">
+      <nav className="max-w-3xl mx-auto flex gap-1 px-4 mt-4 border-b border-emerald-800 overflow-x-auto flex-nowrap">
         <TabButton icon={<ClipboardList size={16} />} label="Picks" active={tab === "picks"} onClick={() => setTab("picks")} />
         <TabButton icon={<Eye size={16} />} label="Overzicht" active={tab === "overzicht"} onClick={() => setTab("overzicht")} />
         <TabButton icon={<Trophy size={16} />} label="Stand" active={tab === "stand"} onClick={() => setTab("stand")} />
@@ -450,7 +450,7 @@ function TabButton({ icon, label, active, onClick }) {
     <button
       onClick={onClick}
       className={
-        "flex items-center gap-1.5 text-sm px-3 py-2 border-b-2 -mb-px transition-colors " +
+        "flex items-center gap-1.5 text-sm px-3 py-2 border-b-2 -mb-px transition-colors whitespace-nowrap shrink-0 " +
         (active ? "border-amber-400 text-amber-400" : "border-transparent text-emerald-400 hover:text-emerald-100")
       }
     >
