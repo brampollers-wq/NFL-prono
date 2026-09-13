@@ -18,6 +18,7 @@ import {
   Wifi,
   Eye,
   EyeOff,
+  ListChecks,
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 
@@ -282,6 +283,7 @@ export default function App() {
       <nav className="max-w-3xl mx-auto flex gap-1 px-4 mt-4 border-b border-emerald-800 overflow-x-auto flex-nowrap">
         <TabButton icon={<ClipboardList size={16} />} label="Picks" active={tab === "picks"} onClick={() => setTab("picks")} />
         <TabButton icon={<Eye size={16} />} label="Overzicht" active={tab === "overzicht"} onClick={() => setTab("overzicht")} />
+        <TabButton icon={<ListChecks size={16} />} label="Punten" active={tab === "punten"} onClick={() => setTab("punten")} />
         <TabButton icon={<Trophy size={16} />} label="Stand" active={tab === "stand"} onClick={() => setTab("stand")} />
         <TabButton icon={<Shield size={16} />} label="Reglement" active={tab === "reglement"} onClick={() => setTab("reglement")} />
         <TabButton icon={<Users size={16} />} label="Beheer" active={tab === "beheer"} onClick={() => setTab("beheer")} />
@@ -312,6 +314,18 @@ export default function App() {
 
         {tab === "overzicht" && (
           <OverzichtTab week={currentWeek} weekGames={weekGames} weekNum={activeWeek} players={players} picks={picks} />
+        )}
+
+        {tab === "punten" && (
+          <PuntenTab
+            week={currentWeek}
+            weekGames={weekGames}
+            weekNum={activeWeek}
+            players={players}
+            me={me}
+            picks={picks}
+            rootingResults={rootingResults}
+          />
         )}
 
         {tab === "stand" && (
@@ -797,6 +811,124 @@ function OverzichtTab({ week, weekGames, weekNum, players, picks }) {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------
+   Punten tab — gedetailleerde puntentelling per speler, per week
+--------------------------------------------------------------- */
+
+const ROOTING_LABELS = { win: "Gewonnen", loss: "Verloren", tie: "Gelijk", bye: "Bye-week" };
+
+function PuntenTab({ week, weekGames, weekNum, players, me, picks, rootingResults }) {
+  const locked = isLocked(week);
+  const selectablePlayers = locked ? players : me ? [me] : [];
+  const [selectedId, setSelectedId] = useState(me?.id || players[0]?.id || "");
+
+  useEffect(() => {
+    if (!locked && me) setSelectedId(me.id);
+  }, [locked, me?.id]);
+
+  if (!week || weekGames.length === 0) {
+    return <EmptyState title="Geen wedstrijden voor deze week" body="Er is nog niets om te tonen." />;
+  }
+
+  if (selectablePlayers.length === 0) {
+    return (
+      <EmptyState
+        title="Nog niet beschikbaar"
+        body={locked ? "Nog geen spelers aangemeld." : "Meld je eerst aan via Picks om je puntentelling te zien."}
+      />
+    );
+  }
+
+  const player = players.find((p) => p.id === selectedId) || selectablePlayers[0];
+  const playerPicks = picks.filter((p) => p.week_num === weekNum && p.player_id === player.id);
+
+  let total = 0;
+  const rows = weekGames.map((g, idx) => {
+    const pick = playerPicks.find((p) => p.game_id === g.id);
+    const pts = pick ? computeGamePoints(pick.picked_team, g, pick.is_double) : null;
+    if (pts !== null) total += pts;
+    return { idx, game: g, pick, pts };
+  });
+
+  const rooting = rootingResults.find((r) => r.week_num === weekNum && r.team === player.rooting_team);
+  let rootingPts = null;
+  if (rooting?.outcome === "win") rootingPts = 1;
+  else if (rooting?.outcome === "loss") rootingPts = -1;
+  else if (rooting?.outcome === "tie" || rooting?.outcome === "bye") rootingPts = 0;
+  if (rootingPts !== null) total += rootingPts;
+
+  return (
+    <div>
+      {!locked && (
+        <div className="mb-4 flex items-center gap-2 bg-emerald-900/30 border border-emerald-800 rounded px-3 py-2 text-sm text-emerald-300">
+          <EyeOff size={16} className="text-amber-400 shrink-0" />
+          Je ziet nu enkel je eigen puntentelling — die van anderen wordt zichtbaar na de deadline van deze week.
+        </div>
+      )}
+
+      {locked && players.length > 1 && (
+        <select
+          value={selectedId}
+          onChange={(e) => setSelectedId(e.target.value)}
+          className="mb-4 bg-emerald-950 border border-emerald-700 rounded px-3 py-2 text-sm"
+        >
+          {players.map((p) => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </select>
+      )}
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm border border-emerald-800 rounded-md overflow-hidden min-w-[480px]">
+          <thead className="bg-emerald-900/60 text-emerald-400 text-xs uppercase tracking-wide">
+            <tr>
+              <th className="text-left px-3 py-2">Wedstrijd</th>
+              <th className="text-left px-3 py-2">Uitslag</th>
+              <th className="text-left px-3 py-2">Pick</th>
+              <th className="text-right px-3 py-2">Punten</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(({ idx, game, pick, pts }) => (
+              <tr key={game.id} className="border-t border-emerald-800">
+                <td className="px-3 py-2 text-emerald-200">
+                  Wedstrijd {idx + 1}: {game.away_team} @ {game.home_team}
+                </td>
+                <td className="px-3 py-2 text-emerald-300">
+                  {game.status === "final" ? `${game.away_score} – ${game.home_score}` : "nog te spelen"}
+                </td>
+                <td className="px-3 py-2">
+                  {pick ? (
+                    <span className="flex items-center gap-1">
+                      {pick.picked_team}
+                      {pick.is_double && <Flame size={12} className="text-amber-400" />}
+                    </span>
+                  ) : (
+                    <span className="text-emerald-600">geen pick</span>
+                  )}
+                </td>
+                <td className="px-3 py-2 text-right font-medium text-emerald-50">{pts === null ? "–" : pts}</td>
+              </tr>
+            ))}
+            <tr className="border-t border-emerald-800 bg-emerald-900/20">
+              <td className="px-3 py-2 text-emerald-200">Rooting team ({player.rooting_team})</td>
+              <td className="px-3 py-2 text-emerald-300">{rooting ? ROOTING_LABELS[rooting.outcome] : "nog niet bekend"}</td>
+              <td className="px-3 py-2"></td>
+              <td className="px-3 py-2 text-right font-medium text-emerald-50">
+                {rootingPts === null ? "–" : rootingPts > 0 ? `+${rootingPts}` : rootingPts}
+              </td>
+            </tr>
+            <tr className="border-t border-emerald-700">
+              <td colSpan={3} className="px-3 py-2 font-semibold text-amber-400">Totaal deze week</td>
+              <td className="px-3 py-2 text-right font-bold text-amber-400">{total}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
