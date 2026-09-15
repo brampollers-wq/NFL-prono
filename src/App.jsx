@@ -216,6 +216,18 @@ export default function App() {
   }
 
   async function adminSaveRooting(weekNum, team, outcome) {
+    if (!outcome) {
+      // "– (nog niet bekend)" gekozen: gewoon de rij verwijderen i.p.v. een
+      // lege waarde op te slaan (die zou de check-constraint schenden).
+      const { error: deleteError } = await supabase
+        .from("rooting_results")
+        .delete()
+        .eq("week_num", weekNum)
+        .eq("team", team);
+      if (deleteError) showToast("Verwijderen mislukt: " + deleteError.message);
+      else await loadAll();
+      return;
+    }
     const { error: upsertError } = await supabase
       .from("rooting_results")
       .upsert({ week_num: weekNum, team, outcome }, { onConflict: "week_num,team" });
