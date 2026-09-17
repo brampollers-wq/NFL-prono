@@ -51,7 +51,16 @@ function periodForWeek(weekNum) {
 // Vaste groepstoegangscode — zie ook SETUP.md om dit te wijzigen.
 const APP_ACCESS_CODE = "NFL2026";
 
-function computeGamePoints(pickedTeam, game, isDouble) {
+// Aantal spelers dat (onafhankelijk van elkaar) hun double point game op
+// deze specifieke wedstrijd heeft gezet. Bij overlap stapelt de
+// vermenigvuldiging: 1 speler -> x2, 2 spelers -> x4. Het reglement laat
+// max 2 double point games per week toe (over alle spelers samen), dus
+// meer dan x4 kan sowieso niet voorkomen.
+function doubleCountForGame(allPicks, gameId) {
+  return allPicks.filter((p) => p.game_id === gameId && p.is_double).length;
+}
+
+function computeGamePoints(pickedTeam, game, isDouble, doubleCount = 0) {
   if (game.home_score === null || game.home_score === undefined) return null;
   const { home_score: homeScore, away_score: awayScore, home_team: home, away_team: away } = game;
   if (homeScore === awayScore) return 0;
@@ -60,7 +69,9 @@ function computeGamePoints(pickedTeam, game, isDouble) {
   let pts;
   if (pickedTeam === winner) pts = margin >= 10 ? 4 : 2;
   else pts = margin >= 10 ? 0 : 1;
-  return isDouble ? pts * 2 : pts;
+  if (!isDouble) return pts;
+  const multiplier = Math.pow(2, Math.max(doubleCount, 1));
+  return pts * multiplier;
 }
 
 function fmtDeadline(iso) {
@@ -199,7 +210,19 @@ export default function App() {
       .from("picks")
       .upsert(rows, { onConflict: "player_id,game_id" });
     if (upsertError) {
-      showToast("Opslaan van picks is mislukt: " + upsertError.message);
+      if (upsertError.message?.includes("uniq_double_per_player_per_period")) {
+        showToast(
+          "Je hebt je double point game voor deze periode (van 6 weken) al gebruikt in een andere week."
+        );
+      } else if (upsertError.message?.includes("uniq_double_per_player_per_week")) {
+        showToast("Je kan maar 1 double point game per week selecteren.");
+      } else if (upsertError.message?.includes("max_2_double_point_games_per_week")) {
+        showToast(
+          "Er zijn deze week al 2 double point games ingezet door andere spelers — dat is het maximum per week."
+        );
+      } else {
+        showToast("Opslaan van picks is mislukt: " + upsertError.message);
+      }
       return;
     }
     await loadAll();
@@ -535,6 +558,14 @@ function PicksTab({ week, weekGames, weekNum, players, me, picks, savePicks, onR
     periodUsedElsewhere = myDoubles.some((p) => periodForWeek(p.week_num) === period);
   }
 
+  // Reglement: max 2 double point games per week, over alle spelers samen.
+  // Als 2 ANDERE spelers deze week al hun DPG hebben ingezet, kan ik enkel
+  // nog mijn eigen, al gekozen wedstrijd aan-/uitzetten, maar geen nieuwe.
+  const othersWithDoubleThisWeek = new Set(
+    picks.filter((p) => p.week_num === weekNum && p.is_double && p.player_id !== me.id).map((p) => p.player_id)
+  ).size;
+  const weeklyCapReached = othersWithDoubleThisWeek >= 2;
+
   function selectPick(gameId, team) {
     if (locked) return;
     setGamePicks((prev) => ({ ...prev, [gameId]: team }));
@@ -542,6 +573,7 @@ function PicksTab({ week, weekGames, weekNum, players, me, picks, savePicks, onR
 
   function toggleDouble(gameId) {
     if (locked || !allPicked || periodUsedElsewhere || !period) return;
+    if (weeklyCapReached && doubleGameId !== gameId) return;
     setDoubleGameId((prev) => (prev === gameId ? null : gameId));
   }
 
@@ -564,6 +596,9 @@ function PicksTab({ week, weekGames, weekNum, players, me, picks, savePicks, onR
           <div className={"text-xs px-2 py-1 rounded border " + (periodUsedElsewhere ? "border-emerald-800 text-emerald-500" : "border-amber-700 text-amber-400")}>
             Dubbele-puntenvenster: {PERIODS.find((p) => p.id === period).label}
             {periodUsedElsewhere ? " (al gebruikt)" : ""}
+            {!periodUsedElsewhere && weeklyCapReached && !doubleGameId
+              ? " — max 2 DPG's deze week al bereikt door anderen"
+              : ""}
           </div>
         )}
       </div>
@@ -581,7 +616,13 @@ function PicksTab({ week, weekGames, weekNum, players, me, picks, savePicks, onR
               <span className="text-xs text-emerald-400">{g.spread ? `Spread: ${g.spread}` : "Geen spread"}</span>
               <button
                 onClick={() => toggleDouble(g.id)}
-                disabled={locked || !allPicked || periodUsedElsewhere || !period}
+                disabled={
+                  locked ||
+                  !allPicked ||
+                  periodUsedElsewhere ||
+                  !period ||
+                  (weeklyCapReached && doubleGameId !== g.id)
+                }
                 className={
                   "flex items-center gap-1 text-xs px-2 py-1 rounded border disabled:opacity-30 " +
                   (doubleGameId === g.id ? "bg-amber-400 text-emerald-950 border-amber-400" : "border-emerald-700 text-emerald-300 hover:border-amber-500")
@@ -861,7 +902,9 @@ function PuntenTab({ week, weekGames, weekNum, players, me, picks, rootingResult
   let total = 0;
   const rows = weekGames.map((g, idx) => {
     const pick = playerPicks.find((p) => p.game_id === g.id);
-    const pts = pick ? computeGamePoints(pick.picked_team, g, pick.is_double) : null;
+    const pts = pick
+      ? computeGamePoints(pick.picked_team, g, pick.is_double, doubleCountForGame(picks, g.id))
+      : null;
     if (pts !== null) total += pts;
     return { idx, game: g, pick, pts };
   });
@@ -917,7 +960,12 @@ function PuntenTab({ week, weekGames, weekNum, players, me, picks, rootingResult
                   {pick ? (
                     <span className="flex items-center gap-1">
                       {pick.picked_team}
-                      {pick.is_double && <Flame size={12} className="text-amber-400" />}
+                      {pick.is_double && (
+                        <span className="flex items-center gap-0.5 text-amber-400">
+                          <Flame size={12} />
+                          x{Math.pow(2, Math.max(doubleCountForGame(picks, game.id), 1))}
+                        </span>
+                      )}
                     </span>
                   ) : (
                     <span className="text-emerald-600">geen pick</span>
@@ -958,7 +1006,12 @@ function StandTab({ players, weeks, games, picks, rootingResults }) {
       for (const pick of myPicks) {
         const game = gamesOfWeek.find((g) => g.id === pick.game_id);
         if (!game) continue;
-        const pts = computeGamePoints(pick.picked_team, game, pick.is_double);
+        const pts = computeGamePoints(
+          pick.picked_team,
+          game,
+          pick.is_double,
+          doubleCountForGame(picks, game.id)
+        );
         if (pts !== null) total += pts;
       }
       const rooting = rootingResults.find((r) => r.week_num === week.week_num && r.team === player.rooting_team);
