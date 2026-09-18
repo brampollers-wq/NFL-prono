@@ -51,16 +51,18 @@ function periodForWeek(weekNum) {
 // Vaste groepstoegangscode — zie ook SETUP.md om dit te wijzigen.
 const APP_ACCESS_CODE = "NFL2026";
 
-// Aantal spelers dat (onafhankelijk van elkaar) hun double point game op
-// deze specifieke wedstrijd heeft gezet. Bij overlap stapelt de
-// vermenigvuldiging: 1 speler -> x2, 2 spelers -> x4. Het reglement laat
-// max 2 double point games per week toe (over alle spelers samen), dus
-// meer dan x4 kan sowieso niet voorkomen.
+// Aantal spelers dat hun double point game op deze specifieke wedstrijd
+// heeft gezet. Zodra minstens 1 speler dat doet, telt de wedstrijd voor
+// IEDEREEN dubbel (x2) — niet enkel voor die ene speler. Zetten 2 spelers
+// (onafhankelijk van elkaar) hun DPG op dezelfde wedstrijd, dan geldt x4
+// voor alle spelers op die wedstrijd. Het reglement laat max 2 double point
+// games per week toe (over alle spelers samen), dus meer dan x4 kan sowieso
+// niet voorkomen.
 function doubleCountForGame(allPicks, gameId) {
   return allPicks.filter((p) => p.game_id === gameId && p.is_double).length;
 }
 
-function computeGamePoints(pickedTeam, game, isDouble, doubleCount = 0) {
+function computeGamePoints(pickedTeam, game, doubleCount = 0) {
   if (game.home_score === null || game.home_score === undefined) return null;
   const { home_score: homeScore, away_score: awayScore, home_team: home, away_team: away } = game;
   if (homeScore === awayScore) return 0;
@@ -69,8 +71,8 @@ function computeGamePoints(pickedTeam, game, isDouble, doubleCount = 0) {
   let pts;
   if (pickedTeam === winner) pts = margin >= 10 ? 4 : 2;
   else pts = margin >= 10 ? 0 : 1;
-  if (!isDouble) return pts;
-  const multiplier = Math.pow(2, Math.max(doubleCount, 1));
+  if (doubleCount <= 0) return pts;
+  const multiplier = Math.pow(2, doubleCount);
   return pts * multiplier;
 }
 
@@ -903,7 +905,7 @@ function PuntenTab({ week, weekGames, weekNum, players, me, picks, rootingResult
   const rows = weekGames.map((g, idx) => {
     const pick = playerPicks.find((p) => p.game_id === g.id);
     const pts = pick
-      ? computeGamePoints(pick.picked_team, g, pick.is_double, doubleCountForGame(picks, g.id))
+      ? computeGamePoints(pick.picked_team, g, doubleCountForGame(picks, g.id))
       : null;
     if (pts !== null) total += pts;
     return { idx, game: g, pick, pts };
@@ -960,10 +962,17 @@ function PuntenTab({ week, weekGames, weekNum, players, me, picks, rootingResult
                   {pick ? (
                     <span className="flex items-center gap-1">
                       {pick.picked_team}
-                      {pick.is_double && (
-                        <span className="flex items-center gap-0.5 text-amber-400">
+                      {doubleCountForGame(picks, game.id) > 0 && (
+                        <span
+                          className="flex items-center gap-0.5 text-amber-400"
+                          title={
+                            pick.is_double
+                              ? "Jij hebt hier je eigen double point game op gezet"
+                              : "Een andere speler zette hier zijn double point game op — deze wedstrijd telt daardoor ook voor jou dubbel"
+                          }
+                        >
                           <Flame size={12} />
-                          x{Math.pow(2, Math.max(doubleCountForGame(picks, game.id), 1))}
+                          x{Math.pow(2, doubleCountForGame(picks, game.id))}
                         </span>
                       )}
                     </span>
@@ -1009,7 +1018,6 @@ function StandTab({ players, weeks, games, picks, rootingResults }) {
         const pts = computeGamePoints(
           pick.picked_team,
           game,
-          pick.is_double,
           doubleCountForGame(picks, game.id)
         );
         if (pts !== null) total += pts;
