@@ -92,6 +92,17 @@ function isLocked(week) {
   return new Date() >= new Date(week.deadline);
 }
 
+function fmtKickoff(iso) {
+  if (!iso) return null;
+  return new Date(iso).toLocaleString("nl-BE", {
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 /* ---------------------------------------------------------------
    Main App
 --------------------------------------------------------------- */
@@ -303,7 +314,13 @@ export default function App() {
 
   const weekNums = weeks.map((w) => w.week_num).sort((a, b) => a - b);
   const currentWeek = weeks.find((w) => w.week_num === activeWeek) || null;
-  const weekGames = games.filter((g) => g.week_num === activeWeek);
+  const weekGames = games
+    .filter((g) => g.week_num === activeWeek)
+    .sort((a, b) => {
+      if (!a.commence_time) return 1;
+      if (!b.commence_time) return -1;
+      return new Date(a.commence_time) - new Date(b.commence_time);
+    });
   const me = players.find((p) => p.id === myPlayerId) || null;
   const rootingTeams = Array.from(new Set(players.map((p) => p.rooting_team).filter(Boolean))).sort();
 
@@ -612,8 +629,16 @@ function PicksTab({ week, weekGames, weekNum, players, me, picks, savePicks, onR
       )}
 
       <div className="space-y-3">
-        {weekGames.map((g) => (
+        {weekGames.map((g, idx) => (
           <div key={g.id} className="border border-emerald-800 rounded-md p-3 bg-emerald-900/30">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-sm text-emerald-200 font-medium">
+                Wedstrijd {idx + 1}: {g.away_team} @ {g.home_team}
+              </span>
+              {g.commence_time && (
+                <span className="text-xs text-emerald-400">{fmtKickoff(g.commence_time)}</span>
+              )}
+            </div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs text-emerald-400">{g.spread ? `Spread: ${g.spread}` : "Geen spread"}</span>
               <button
@@ -836,16 +861,20 @@ function OverzichtTab({ week, weekGames, weekNum, players, picks }) {
         <thead className="bg-emerald-900/60 text-emerald-400 text-xs uppercase tracking-wide">
           <tr>
             <th className="text-left px-3 py-2">Wedstrijd</th>
+            <th className="text-left px-3 py-2">Datum/uur</th>
             {players.map((p) => (
               <th key={p.id} className="text-left px-3 py-2">{p.name}</th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {weekGames.map((g) => (
+          {weekGames.map((g, idx) => (
             <tr key={g.id} className="border-t border-emerald-800">
               <td className="px-3 py-2 text-emerald-300 whitespace-nowrap">
-                {g.away_team.split(" ").slice(-1)} @ {g.home_team.split(" ").slice(-1)}
+                {idx + 1}. {g.away_team.split(" ").slice(-1)} @ {g.home_team.split(" ").slice(-1)}
+              </td>
+              <td className="px-3 py-2 text-emerald-400 text-xs whitespace-nowrap">
+                {fmtKickoff(g.commence_time) || "–"}
               </td>
               {players.map((p) => {
                 const pick = weekPicks.find((x) => x.player_id === p.id && x.game_id === g.id);
