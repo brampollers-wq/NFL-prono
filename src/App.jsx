@@ -991,7 +991,10 @@ function PuntenTab({ week, weekGames, weekNum, players, me, picks, rootingResult
                   {pick ? (
                     <span className="flex items-center gap-1">
                       {pick.picked_team}
-                      {doubleCountForGame(picks, game.id) > 0 && (
+                      {/* Vóór de deadline mag enkel je eigen DPG-keuze zichtbaar zijn —
+                          nooit of een ANDERE speler deze wedstrijd al dubbel zette,
+                          want dat verklapt info over nog niet-vrijgegeven picks. */}
+                      {(pick.is_double || (locked && doubleCountForGame(picks, game.id) > 0)) && (
                         <span
                           className="flex items-center gap-0.5 text-amber-400"
                           title={
@@ -1001,7 +1004,7 @@ function PuntenTab({ week, weekGames, weekNum, players, me, picks, rootingResult
                           }
                         >
                           <Flame size={12} />
-                          x{Math.pow(2, doubleCountForGame(picks, game.id))}
+                          x{locked ? Math.pow(2, doubleCountForGame(picks, game.id)) : 2}
                         </span>
                       )}
                     </span>
