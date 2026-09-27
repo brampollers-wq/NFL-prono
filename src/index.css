@@ -2,6 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Standaard accentkleur (amber) — wordt via JS overschreven zodra het
+   rooting team van de ingelogde speler gekend is (zie App.jsx). */
+:root {
+  --accent: #fbbf24;
+  --accent-hover: #fcd34d;
+  --accent-border: #b45309;
+  --accent-soft: rgba(251, 191, 36, 0.15);
+  --accent-text: #022c22;
+}
+
 html, body, #root {
   overflow-x: hidden;
   width: 100%;
