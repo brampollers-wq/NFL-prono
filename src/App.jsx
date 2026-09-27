@@ -51,22 +51,22 @@ const TEAM_COLORS = {
   "Baltimore Ravens": "#241773",
   "Buffalo Bills": "#00338D",
   "Carolina Panthers": "#0085CA",
-  "Chicago Bears": "#0B162A",
+  "Chicago Bears": "#C83803",
   "Cincinnati Bengals": "#FB4F14",
   "Cleveland Browns": "#FF3C00",
   "Dallas Cowboys": "#003594",
   "Denver Broncos": "#FB4F14",
   "Detroit Lions": "#0076B6",
   "Green Bay Packers": "#FFB612",
-  "Houston Texans": "#03202F",
+  "Houston Texans": "#A71930",
   "Indianapolis Colts": "#002C5F",
-  "Jacksonville Jaguars": "#D7A22A",
+  "Jacksonville Jaguars": "#006778",
   "Kansas City Chiefs": "#E31837",
   "Las Vegas Raiders": "#A5ACAF",
   "Los Angeles Chargers": "#0080C6",
   "Los Angeles Rams": "#FFA300",
   "Miami Dolphins": "#008E97",
-  "Minnesota Vikings": "#FFC62F",
+  "Minnesota Vikings": "#4F2683",
   "New England Patriots": "#C60C30",
   "New Orleans Saints": "#D3BC8D",
   "New York Giants": "#0B2265",
@@ -77,6 +77,45 @@ const TEAM_COLORS = {
   "Seattle Seahawks": "#69BE28",
   "Tampa Bay Buccaneers": "#D50A0A",
   "Tennessee Titans": "#4B92DB",
+  "Washington Commanders": "#5A1414",
+};
+
+// Secundaire clubkleur per team — gebruikt voor de achtergrondtint, zodat
+// die niet gewoon een verdonkerde versie van de accentkleur is maar een
+// écht tweede kleuraccent (zoals de meeste clubs zelf een kleurenpaar
+// hebben, bv. Broncos oranje + navy, Eagles groen + zilver).
+const TEAM_SECONDARY_COLORS = {
+  "Arizona Cardinals": "#000000",
+  "Atlanta Falcons": "#000000",
+  "Baltimore Ravens": "#000000",
+  "Buffalo Bills": "#C60C30",
+  "Carolina Panthers": "#000000",
+  "Chicago Bears": "#0B162A",
+  "Cincinnati Bengals": "#000000",
+  "Cleveland Browns": "#311D00",
+  "Dallas Cowboys": "#869397",
+  "Denver Broncos": "#002244",
+  "Detroit Lions": "#B0B7BC",
+  "Green Bay Packers": "#203731",
+  "Houston Texans": "#03202F",
+  "Indianapolis Colts": "#A2AAAD",
+  "Jacksonville Jaguars": "#101820",
+  "Kansas City Chiefs": "#FFB81C",
+  "Las Vegas Raiders": "#000000",
+  "Los Angeles Chargers": "#002A5E",
+  "Los Angeles Rams": "#003594",
+  "Miami Dolphins": "#005778",
+  "Minnesota Vikings": "#FFC62F",
+  "New England Patriots": "#C60C30",
+  "New Orleans Saints": "#101820",
+  "New York Giants": "#A71930",
+  "New York Jets": "#000000",
+  "Philadelphia Eagles": "#A5ACAF",
+  "Pittsburgh Steelers": "#101820",
+  "San Francisco 49ers": "#B3995D",
+  "Seattle Seahawks": "#002244",
+  "Tampa Bay Buccaneers": "#34302B",
+  "Tennessee Titans": "#0C2340",
   "Washington Commanders": "#FFB612",
 };
 
@@ -113,17 +152,22 @@ function contrastText(hex) {
 // Berekent alle CSS-variabelen voor de accentkleur op basis van een team.
 function accentVarsForTeam(teamName) {
   const base = TEAM_COLORS[teamName] || DEFAULT_ACCENT;
+  // Achtergrond baseert zich op de SECUNDAIRE clubkleur (bv. Broncos-navy,
+  // Eagles-zilver) i.p.v. gewoon een verdonkerde accentkleur — zo krijg je
+  // het echte tweekleurige clubgevoel i.p.v. één kleur in twee tinten.
+  // Geen secundaire kleur gekend? Dan valt het terug op de accentkleur zelf.
+  const bgBase = TEAM_SECONDARY_COLORS[teamName] || base;
   return {
     "--accent": base,
     "--accent-hover": mixWith(base, "#ffffff", 0.2),
     "--accent-border": mixWith(base, "#000000", 0.25),
     "--accent-soft": rgba(base, 0.15),
     "--accent-text": contrastText(base),
-    // Diepe, gedempte achtergrondtint op basis van de teamkleur — sterk
-    // richting zwart gemengd, zodat het donkere thema en de leesbaarheid
-    // van de (ongewijzigde) emerald-tekstkleuren bewaard blijven.
-    "--bg-dark": mixWith(base, "#000000", 0.88),
-    "--bg-panel": mixWith(base, "#000000", 0.82),
+    // Diepe, gedempte achtergrondtint — sterk richting zwart gemengd, zodat
+    // het donkere thema en de leesbaarheid van de bestaande emerald-
+    // tekstkleuren bewaard blijven.
+    "--bg-dark": mixWith(bgBase, "#000000", 0.88),
+    "--bg-panel": mixWith(bgBase, "#000000", 0.82),
   };
 }
 
