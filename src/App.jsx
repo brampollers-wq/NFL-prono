@@ -119,6 +119,11 @@ function accentVarsForTeam(teamName) {
     "--accent-border": mixWith(base, "#000000", 0.25),
     "--accent-soft": rgba(base, 0.15),
     "--accent-text": contrastText(base),
+    // Diepe, gedempte achtergrondtint op basis van de teamkleur — sterk
+    // richting zwart gemengd, zodat het donkere thema en de leesbaarheid
+    // van de (ongewijzigde) emerald-tekstkleuren bewaard blijven.
+    "--bg-dark": mixWith(base, "#000000", 0.88),
+    "--bg-panel": mixWith(base, "#000000", 0.82),
   };
 }
 
@@ -414,7 +419,7 @@ export default function App() {
   const rootingTeams = Array.from(new Set(players.map((p) => p.rooting_team).filter(Boolean))).sort();
 
   return (
-    <div className="min-h-screen bg-emerald-950 text-emerald-50 pb-16">
+    <div className="min-h-screen bg-[var(--bg-dark)] text-emerald-50 pb-16">
       <Header
         weekNums={weekNums}
         activeWeek={activeWeek}
@@ -521,7 +526,7 @@ function AccessGate({ onUnlock }) {
 
   return (
     <div className="min-h-screen bg-emerald-950 text-emerald-50 flex items-center justify-center px-4">
-      <div className="w-full max-w-sm border border-emerald-800 rounded-md p-6 bg-emerald-900/30">
+      <div className="w-full max-w-sm border border-emerald-800 rounded-md p-6 bg-[var(--bg-panel)]/60">
         <div className="flex items-center gap-2 mb-1">
           <KeyRound size={18} className="text-[var(--accent)]" />
           <h1 style={{ fontFamily: "'Bebas Neue', sans-serif" }} className="text-2xl text-[var(--accent)]">
@@ -557,7 +562,7 @@ function AccessGate({ onUnlock }) {
 function Header({ weekNums, activeWeek, setActiveWeek, me, onLogout }) {
   const idx = weekNums.indexOf(activeWeek);
   return (
-    <header className="border-b border-emerald-800 bg-emerald-900/40">
+    <header className="border-b border-emerald-800 bg-[var(--bg-panel)]/70">
       <div className="max-w-3xl mx-auto px-4 py-5 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: "0.03em" }} className="text-4xl text-[var(--accent)] leading-none">
@@ -712,14 +717,14 @@ function PicksTab({ week, weekGames, weekNum, players, me, picks, savePicks, onR
       </div>
 
       {locked && (
-        <div className="mb-4 text-sm bg-emerald-900/60 border border-emerald-800 rounded px-3 py-2 text-emerald-300">
+        <div className="mb-4 text-sm bg-[var(--bg-panel)]/90 border border-emerald-800 rounded px-3 py-2 text-emerald-300">
           De deadline voor deze week is verstreken.
         </div>
       )}
 
       <div className="space-y-3">
         {weekGames.map((g, idx) => (
-          <div key={g.id} className="border border-emerald-800 rounded-md p-3 bg-emerald-900/30">
+          <div key={g.id} className="border border-emerald-800 rounded-md p-3 bg-[var(--bg-panel)]/60">
             <div className="flex items-center justify-between mb-1">
               <span className="text-sm text-emerald-200 font-medium">
                 Wedstrijd {idx + 1}: {g.away_team} @ {g.home_team}
@@ -825,7 +830,7 @@ function LoginForm({ players, onLogin, showToast }) {
   }
 
   return (
-    <div className="border border-emerald-800 rounded-md p-5 bg-emerald-900/30 space-y-4">
+    <div className="border border-emerald-800 rounded-md p-5 bg-[var(--bg-panel)]/60 space-y-4">
       <h2 style={{ fontFamily: "'Bebas Neue', sans-serif" }} className="text-2xl text-[var(--accent)] flex items-center gap-2">
         <LogIn size={20} /> Inloggen
       </h2>
@@ -872,7 +877,7 @@ function RegisterForm({ onRegister }) {
   }
 
   return (
-    <div className="border border-emerald-800 rounded-md p-5 bg-emerald-900/30 space-y-4">
+    <div className="border border-emerald-800 rounded-md p-5 bg-[var(--bg-panel)]/60 space-y-4">
       <h2 style={{ fontFamily: "'Bebas Neue', sans-serif" }} className="text-2xl text-[var(--accent)]">Meld je aan</h2>
       <p className="text-sm text-emerald-300">
         Kies je naam, je championship team, je rooting team en een pincode van 4 cijfers zodat niemand anders voor jou kan kiezen.
@@ -933,7 +938,7 @@ function OverzichtTab({ week, weekGames, weekNum, players, picks }) {
   if (!locked) {
     return (
       <div className="space-y-4">
-        <div className="border border-emerald-800 rounded-md p-4 bg-emerald-900/30 flex items-center gap-2 text-sm text-emerald-300">
+        <div className="border border-emerald-800 rounded-md p-4 bg-[var(--bg-panel)]/60 flex items-center gap-2 text-sm text-emerald-300">
           <EyeOff size={16} className="text-[var(--accent)] shrink-0" />
           Ieders keuzes voor Week {weekNum} worden pas zichtbaar zodra de deadline ({fmtDeadline(week.deadline)}) verstreken is — zo kan niemand nog overschrijven van een ander.
         </div>
@@ -947,7 +952,7 @@ function OverzichtTab({ week, weekGames, weekNum, players, picks }) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm border border-emerald-800 rounded-md overflow-hidden">
-        <thead className="bg-emerald-900/60 text-emerald-400 text-xs uppercase tracking-wide">
+        <thead className="bg-[var(--bg-panel)]/90 text-emerald-400 text-xs uppercase tracking-wide">
           <tr>
             <th className="text-left px-3 py-2">Wedstrijd</th>
             <th className="text-left px-3 py-2">Datum/uur</th>
@@ -1039,7 +1044,7 @@ function PuntenTab({ week, weekGames, weekNum, players, me, picks, rootingResult
   return (
     <div>
       {!locked && (
-        <div className="mb-4 flex items-center gap-2 bg-emerald-900/30 border border-emerald-800 rounded px-3 py-2 text-sm text-emerald-300">
+        <div className="mb-4 flex items-center gap-2 bg-[var(--bg-panel)]/60 border border-emerald-800 rounded px-3 py-2 text-sm text-emerald-300">
           <EyeOff size={16} className="text-[var(--accent)] shrink-0" />
           Je ziet nu enkel je eigen puntentelling — die van anderen wordt zichtbaar na de deadline van deze week.
         </div>
@@ -1059,7 +1064,7 @@ function PuntenTab({ week, weekGames, weekNum, players, me, picks, rootingResult
 
       <div className="overflow-x-auto">
         <table className="w-full text-sm border border-emerald-800 rounded-md overflow-hidden min-w-[480px]">
-          <thead className="bg-emerald-900/60 text-emerald-400 text-xs uppercase tracking-wide">
+          <thead className="bg-[var(--bg-panel)]/90 text-emerald-400 text-xs uppercase tracking-wide">
             <tr>
               <th className="text-left px-3 py-2">Wedstrijd</th>
               <th className="text-left px-3 py-2">Uitslag</th>
@@ -1104,7 +1109,7 @@ function PuntenTab({ week, weekGames, weekNum, players, me, picks, rootingResult
                 <td className="px-3 py-2 text-right font-medium text-emerald-50">{pts === null ? "–" : pts}</td>
               </tr>
             ))}
-            <tr className="border-t border-emerald-800 bg-emerald-900/20">
+            <tr className="border-t border-emerald-800 bg-[var(--bg-panel)]/40">
               <td className="px-3 py-2 text-emerald-200">Rooting team ({player.rooting_team})</td>
               <td className="px-3 py-2 text-emerald-300">{rooting ? ROOTING_LABELS[rooting.outcome] : "nog niet bekend"}</td>
               <td className="px-3 py-2"></td>
@@ -1156,7 +1161,7 @@ function StandTab({ players, weeks, games, picks, rootingResults }) {
     <div>
       <div className="border border-emerald-800 rounded-md overflow-x-auto">
         <table className="w-full text-sm min-w-[420px]">
-          <thead className="bg-emerald-900/60 text-emerald-400 text-xs uppercase tracking-wide">
+          <thead className="bg-[var(--bg-panel)]/90 text-emerald-400 text-xs uppercase tracking-wide">
             <tr>
               <th className="text-left px-3 py-2">#</th>
               <th className="text-left px-3 py-2">Speler</th>
@@ -1241,7 +1246,7 @@ function ReglementTab() {
 
 function Section({ title, children }) {
   return (
-    <div className="border border-emerald-800 rounded-md p-4 bg-emerald-900/30">
+    <div className="border border-emerald-800 rounded-md p-4 bg-[var(--bg-panel)]/60">
       <h3 className="text-[var(--accent)] font-semibold mb-1.5">{title}</h3>
       <div>{children}</div>
     </div>
@@ -1288,7 +1293,7 @@ function BeheerTab({ weeks, games, players, rootingTeams, rootingResults, onAddW
         gemist, of een uitslag verkeerd staat.
       </div>
 
-      <div className="border border-emerald-800 rounded-md p-4 bg-emerald-900/30">
+      <div className="border border-emerald-800 rounded-md p-4 bg-[var(--bg-panel)]/60">
         <h3 className="text-[var(--accent)] font-semibold mb-3">Week handmatig toevoegen</h3>
         <div className="grid grid-cols-2 gap-3 mb-3">
           <div>
@@ -1328,7 +1333,7 @@ function BeheerTab({ weeks, games, players, rootingTeams, rootingResults, onAddW
       </div>
 
       {sortedWeeks.map((wk) => (
-        <div key={wk.week_num} className="border border-emerald-800 rounded-md p-4 bg-emerald-900/30">
+        <div key={wk.week_num} className="border border-emerald-800 rounded-md p-4 bg-[var(--bg-panel)]/60">
           <h3 className="text-[var(--accent)] font-semibold mb-3">Week {wk.week_num}</h3>
           <div className="space-y-2">
             {games.filter((g) => g.week_num === wk.week_num).map((g) => (
@@ -1365,7 +1370,7 @@ function BeheerTab({ weeks, games, players, rootingTeams, rootingResults, onAddW
         </div>
       ))}
 
-      <div className="border border-emerald-800 rounded-md p-4 bg-emerald-900/30">
+      <div className="border border-emerald-800 rounded-md p-4 bg-[var(--bg-panel)]/60">
         <h3 className="text-[var(--accent)] font-semibold mb-3">Spelers</h3>
         {players.length === 0 && <p className="text-sm text-emerald-400">Nog niemand aangemeld.</p>}
         <div className="space-y-1.5">

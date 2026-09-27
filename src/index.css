@@ -10,6 +10,12 @@
   --accent-border: #b45309;
   --accent-soft: rgba(251, 191, 36, 0.15);
   --accent-text: #022c22;
+  --bg-dark: #022c22;
+  --bg-panel: #022c22;
+}
+
+body {
+  background-color: var(--bg-dark);
 }
 
 html, body, #root {
