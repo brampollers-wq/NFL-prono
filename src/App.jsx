@@ -581,6 +581,8 @@ export default function App() {
             weeks={weeks}
             games={games}
             players={players}
+            picks={picks}
+            activeWeek={activeWeek}
             rootingTeams={rootingTeams}
             rootingResults={rootingResults}
             onAddWeek={adminAddWeek}
@@ -1352,7 +1354,7 @@ function Section({ title, children }) {
    wedstrijden en uitslagen komen automatisch binnen.
 --------------------------------------------------------------- */
 
-function BeheerTab({ weeks, games, players, rootingTeams, rootingResults, onAddWeek, onSaveResult, onSaveRooting, onRemovePlayer, showToast }) {
+function BeheerTab({ weeks, games, players, picks, activeWeek, rootingTeams, rootingResults, onAddWeek, onSaveResult, onSaveRooting, onRemovePlayer, showToast }) {
   const [newWeekNum, setNewWeekNum] = useState(weeks.length ? Math.max(...weeks.map((w) => w.week_num)) + 1 : 1);
   const [deadline, setDeadline] = useState("");
   const [draftGames, setDraftGames] = useState([{ home: "", away: "", spread: "" }]);
@@ -1379,12 +1381,68 @@ function BeheerTab({ weeks, games, players, rootingTeams, rootingResults, onAddW
 
   const sortedWeeks = [...weeks].sort((a, b) => b.week_num - a.week_num);
 
+  const currentPeriod = PERIODS.find((p) => activeWeek >= p.min && activeWeek <= p.max) || PERIODS[0];
+  const dpgOverview = players.map((player) => {
+    const pick = picks.find(
+      (p) =>
+        p.player_id === player.id &&
+        p.is_double &&
+        p.week_num >= currentPeriod.min &&
+        p.week_num <= currentPeriod.max
+    );
+    const game = pick ? games.find((g) => g.id === pick.game_id) : null;
+    return { player, pick, game };
+  });
+
   return (
     <div className="space-y-8">
       <div className="border border-[var(--accent-border)] rounded-md p-4 bg-[var(--accent-border)]/20 text-sm text-[var(--accent-hover)]">
         Wedstrijden en uitslagen komen normaal automatisch binnen (elke woensdag, en na elke wedstrijd).
         Gebruik onderstaande formulieren enkel als noodgreep — bv. als de automatische taak een week heeft
         gemist, of een uitslag verkeerd staat.
+      </div>
+
+      <div className="border border-emerald-800 rounded-md p-4 bg-[var(--bg-panel)]/60">
+        <h3 className="text-[var(--accent)] font-semibold mb-1">
+          Double point games — {currentPeriod.label}
+        </h3>
+        <p className="text-xs text-emerald-400 mb-3">
+          Wie z'n DPG al ingezet heeft in de lopende periode (op basis van week {activeWeek}).
+        </p>
+        {players.length === 0 ? (
+          <p className="text-sm text-emerald-500">Nog geen spelers aangemeld.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-emerald-400 text-xs uppercase tracking-wide">
+                <tr>
+                  <th className="text-left py-1.5 pr-3">Speler</th>
+                  <th className="text-left py-1.5 pr-3">Status</th>
+                  <th className="text-left py-1.5">Wedstrijd</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dpgOverview.map(({ player, pick, game }) => (
+                  <tr key={player.id} className="border-t border-emerald-800/60">
+                    <td className="py-1.5 pr-3 text-emerald-100">{player.name}</td>
+                    <td className="py-1.5 pr-3">
+                      {pick ? (
+                        <span className="inline-flex items-center gap-1 text-[var(--accent)]">
+                          <Flame size={12} /> ingezet (week {pick.week_num})
+                        </span>
+                      ) : (
+                        <span className="text-emerald-500">nog niet ingezet</span>
+                      )}
+                    </td>
+                    <td className="py-1.5 text-emerald-300">
+                      {game ? `${game.away_team} @ ${game.home_team}` : "–"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       <div className="border border-emerald-800 rounded-md p-4 bg-[var(--bg-panel)]/60">
