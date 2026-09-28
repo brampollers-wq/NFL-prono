@@ -12,6 +12,8 @@
   --accent-text: #022c22;
   --bg-dark: #022c22;
   --bg-panel: #022c22;
+  --highlight: #047857;
+  --highlight-soft: rgba(4, 120, 87, 0.45);
 }
 
 body {

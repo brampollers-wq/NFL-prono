@@ -119,6 +119,47 @@ const TEAM_SECONDARY_COLORS = {
   "Washington Commanders": "#FFB612",
 };
 
+// Derde/tertiaire clubkleur per team — gebruikt als "highlight"-kleur voor
+// randen/lijnen, zodat de personalisatie écht als een drieklank aanvoelt
+// (zoals de meeste clubs zelf een drieluik van kleuren hanteren) i.p.v.
+// enkel accent + achtergrond. Teams zonder een echt onderscheidende derde
+// merkkleur (vaak is die gewoon wit) vallen terug op een neutrale grijstint.
+const TERTIARY_FALLBACK = "#9CA3AF";
+const TEAM_TERTIARY_COLORS = {
+  "Arizona Cardinals": TERTIARY_FALLBACK,
+  "Atlanta Falcons": "#A5ACAF",
+  "Baltimore Ravens": "#9E7C0C",
+  "Buffalo Bills": TERTIARY_FALLBACK,
+  "Carolina Panthers": "#BFC0BF",
+  "Chicago Bears": TERTIARY_FALLBACK,
+  "Cincinnati Bengals": TERTIARY_FALLBACK,
+  "Cleveland Browns": TERTIARY_FALLBACK,
+  "Dallas Cowboys": TERTIARY_FALLBACK,
+  "Denver Broncos": TERTIARY_FALLBACK,
+  "Detroit Lions": "#000000",
+  "Green Bay Packers": TERTIARY_FALLBACK,
+  "Houston Texans": TERTIARY_FALLBACK,
+  "Indianapolis Colts": TERTIARY_FALLBACK,
+  "Jacksonville Jaguars": "#D7A22A",
+  "Kansas City Chiefs": TERTIARY_FALLBACK,
+  "Las Vegas Raiders": TERTIARY_FALLBACK,
+  "Los Angeles Chargers": "#FFC20E",
+  "Los Angeles Rams": TERTIARY_FALLBACK,
+  "Miami Dolphins": "#FC4C02",
+  "Minnesota Vikings": TERTIARY_FALLBACK,
+  "New England Patriots": "#B0B7BC",
+  "New Orleans Saints": TERTIARY_FALLBACK,
+  "New York Giants": "#A5ACAF",
+  "New York Jets": TERTIARY_FALLBACK,
+  "Philadelphia Eagles": "#000000",
+  "Pittsburgh Steelers": TERTIARY_FALLBACK,
+  "San Francisco 49ers": "#000000",
+  "Seattle Seahawks": "#A5ACAF",
+  "Tampa Bay Buccaneers": "#FF7900",
+  "Tennessee Titans": "#C8102E",
+  "Washington Commanders": "#000000",
+};
+
 // Standaard accent (amber) — gebruikt vóór aanmelden, of als een rooting
 // team toevallig geen kleur in de tabel heeft.
 const DEFAULT_ACCENT = "#fbbf24";
@@ -187,7 +228,7 @@ function hslToHex(h, s, l) {
 // donkere, kleurtint houden.
 function darkBgFrom(hex, lightness) {
   const { h, s } = hexToHsl(hex);
-  const cappedSaturation = Math.min(s, 65);
+  const cappedSaturation = Math.min(s, 78);
   return hslToHex(h, cappedSaturation, lightness);
 }
 
@@ -207,17 +248,24 @@ function accentVarsForTeam(teamName) {
   // het echte tweekleurige clubgevoel i.p.v. één kleur in twee tinten.
   // Geen secundaire kleur gekend? Dan valt het terug op de accentkleur zelf.
   const bgBase = TEAM_SECONDARY_COLORS[teamName] || base;
+  // Derde kleur, gebruikt als aparte "highlight" voor randen/lijnen door de
+  // hele app — zo voelt de personalisatie echt als een drieklank i.p.v.
+  // enkel accent + achtergrond.
+  const highlightBase = TEAM_TERTIARY_COLORS[teamName] || TERTIARY_FALLBACK;
+  const highlight = mixWith(highlightBase, "#ffffff", 0.15);
   return {
     "--accent": base,
     "--accent-hover": mixWith(base, "#ffffff", 0.2),
     "--accent-border": mixWith(base, "#000000", 0.25),
     "--accent-soft": rgba(base, 0.15),
     "--accent-text": contrastText(base),
-    // Diepe, gedempte achtergrondtint — sterk richting zwart gemengd, zodat
-    // het donkere thema en de leesbaarheid van de bestaande emerald-
-    // tekstkleuren bewaard blijven.
-    "--bg-dark": darkBgFrom(bgBase, 9),
-    "--bg-panel": darkBgFrom(bgBase, 14),
+    // Steviger, beter zichtbare achtergrondtint (minder "subtiel" dan
+    // voorheen) — nog steeds donker genoeg voor het thema, met behoud van
+    // de leesbaarheid van de bestaande emerald-tekstkleuren.
+    "--bg-dark": darkBgFrom(bgBase, 11),
+    "--bg-panel": darkBgFrom(bgBase, 18),
+    "--highlight": highlight,
+    "--highlight-soft": rgba(highlightBase, 0.45),
   };
 }
 
@@ -522,7 +570,7 @@ export default function App() {
         onLogout={logout}
       />
 
-      <nav className="max-w-3xl mx-auto flex gap-1 px-4 mt-4 border-b border-emerald-800 overflow-x-auto flex-nowrap">
+      <nav className="max-w-3xl mx-auto flex gap-1 px-4 mt-4 border-b border-[var(--highlight-soft)] overflow-x-auto flex-nowrap">
         <TabButton icon={<ClipboardList size={16} />} label="Picks" active={tab === "picks"} onClick={() => setTab("picks")} />
         <TabButton icon={<Eye size={16} />} label="Overzicht" active={tab === "overzicht"} onClick={() => setTab("overzicht")} />
         <TabButton icon={<ListChecks size={16} />} label="Punten" active={tab === "punten"} onClick={() => setTab("punten")} />
@@ -622,7 +670,7 @@ function AccessGate({ onUnlock }) {
 
   return (
     <div className="min-h-screen bg-emerald-950 text-emerald-50 flex items-center justify-center px-4">
-      <div className="w-full max-w-sm border border-emerald-800 rounded-md p-6 bg-[var(--bg-panel)]/60">
+      <div className="w-full max-w-sm border border-[var(--highlight-soft)] rounded-md p-6 bg-[var(--bg-panel)]/60">
         <div className="flex items-center gap-2 mb-1">
           <KeyRound size={18} className="text-[var(--accent)]" />
           <h1 style={{ fontFamily: "'Bebas Neue', sans-serif" }} className="text-2xl text-[var(--accent)]">
@@ -636,7 +684,7 @@ function AccessGate({ onUnlock }) {
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && submit()}
           placeholder="Toegangscode"
-          className="w-full bg-emerald-950 border border-emerald-700 rounded px-3 py-2 text-sm mb-2"
+          className="w-full bg-emerald-950 border border-[var(--highlight)]/60 rounded px-3 py-2 text-sm mb-2"
           autoFocus
         />
         {error && <p className="text-red-400 text-xs mb-2">{error}</p>}
@@ -658,7 +706,7 @@ function AccessGate({ onUnlock }) {
 function Header({ weekNums, activeWeek, setActiveWeek, me, onLogout }) {
   const idx = weekNums.indexOf(activeWeek);
   return (
-    <header className="border-b border-emerald-800 bg-[var(--bg-panel)]/70">
+    <header className="border-b border-[var(--highlight-soft)] bg-[var(--bg-panel)]/70">
       <div className="max-w-3xl mx-auto px-4 py-5 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: "0.03em" }} className="text-4xl text-[var(--accent)] leading-none">
@@ -682,17 +730,17 @@ function Header({ weekNums, activeWeek, setActiveWeek, me, onLogout }) {
             <button
               disabled={idx <= 0}
               onClick={() => setActiveWeek(weekNums[idx - 1])}
-              className="p-1.5 rounded border border-emerald-700 disabled:opacity-30 hover:bg-emerald-800"
+              className="p-1.5 rounded border border-[var(--highlight)]/60 disabled:opacity-30 hover:bg-emerald-800"
             >
               <ChevronLeft size={16} />
             </button>
-            <div style={{ fontFamily: "'Bebas Neue', sans-serif" }} className="text-2xl w-24 text-center text-emerald-50 border border-emerald-700 rounded px-2 py-0.5">
+            <div style={{ fontFamily: "'Bebas Neue', sans-serif" }} className="text-2xl w-24 text-center text-emerald-50 border border-[var(--highlight)]/60 rounded px-2 py-0.5">
               Week {activeWeek}
             </div>
             <button
               disabled={idx >= weekNums.length - 1}
               onClick={() => setActiveWeek(weekNums[idx + 1])}
-              className="p-1.5 rounded border border-emerald-700 disabled:opacity-30 hover:bg-emerald-800"
+              className="p-1.5 rounded border border-[var(--highlight)]/60 disabled:opacity-30 hover:bg-emerald-800"
             >
               <ChevronRight size={16} />
             </button>
@@ -802,7 +850,7 @@ function PicksTab({ week, weekGames, weekNum, players, me, picks, savePicks, onR
           Deadline: <span className="text-emerald-100">{fmtDeadline(week.deadline)}</span>
         </div>
         {period && (
-          <div className={"text-xs px-2 py-1 rounded border " + (periodUsedElsewhere ? "border-emerald-800 text-emerald-500" : "border-[var(--accent-border)] text-[var(--accent)]")}>
+          <div className={"text-xs px-2 py-1 rounded border " + (periodUsedElsewhere ? "border-[var(--highlight-soft)] text-emerald-500" : "border-[var(--accent-border)] text-[var(--accent)]")}>
             Dubbele-puntenvenster: {PERIODS.find((p) => p.id === period).label}
             {periodUsedElsewhere ? " (al gebruikt)" : ""}
             {!periodUsedElsewhere && weeklyCapReached && !doubleGameId
@@ -813,14 +861,14 @@ function PicksTab({ week, weekGames, weekNum, players, me, picks, savePicks, onR
       </div>
 
       {locked && (
-        <div className="mb-4 text-sm bg-[var(--bg-panel)]/90 border border-emerald-800 rounded px-3 py-2 text-emerald-300">
+        <div className="mb-4 text-sm bg-[var(--bg-panel)]/90 border border-[var(--highlight-soft)] rounded px-3 py-2 text-emerald-300">
           De deadline voor deze week is verstreken.
         </div>
       )}
 
       <div className="space-y-3">
         {weekGames.map((g, idx) => (
-          <div key={g.id} className="border border-emerald-800 rounded-md p-3 bg-[var(--bg-panel)]/60">
+          <div key={g.id} className="border border-[var(--highlight-soft)] rounded-md p-3 bg-[var(--bg-panel)]/60">
             <div className="flex items-center justify-between mb-1">
               <span className="text-sm text-emerald-200 font-medium">
                 Wedstrijd {idx + 1}: {g.away_team} @ {g.home_team}
@@ -842,7 +890,7 @@ function PicksTab({ week, weekGames, weekNum, players, me, picks, savePicks, onR
                 }
                 className={
                   "flex items-center gap-1 text-xs px-2 py-1 rounded border disabled:opacity-30 " +
-                  (doubleGameId === g.id ? "bg-[var(--accent)] text-emerald-950 border-[var(--accent)]" : "border-emerald-700 text-emerald-300 hover:border-[var(--accent-hover)]")
+                  (doubleGameId === g.id ? "bg-[var(--accent)] text-emerald-950 border-[var(--accent)]" : "border-[var(--highlight)]/60 text-emerald-300 hover:border-[var(--accent-hover)]")
                 }
               >
                 <Flame size={13} />
@@ -857,7 +905,7 @@ function PicksTab({ week, weekGames, weekNum, players, me, picks, savePicks, onR
                   onClick={() => selectPick(g.id, team)}
                   className={
                     "text-sm px-3 py-2 rounded border text-left disabled:opacity-60 " +
-                    (gamePicks[g.id] === team ? "bg-[var(--accent)] border-[var(--accent)] text-[var(--accent-text)] font-semibold" : "border-emerald-700 hover:border-[var(--accent-hover)]")
+                    (gamePicks[g.id] === team ? "bg-[var(--accent)] border-[var(--accent)] text-[var(--accent-text)] font-semibold" : "border-[var(--highlight)]/60 hover:border-[var(--accent-hover)]")
                   }
                 >
                   {team}
@@ -926,13 +974,13 @@ function LoginForm({ players, onLogin, showToast }) {
   }
 
   return (
-    <div className="border border-emerald-800 rounded-md p-5 bg-[var(--bg-panel)]/60 space-y-4">
+    <div className="border border-[var(--highlight-soft)] rounded-md p-5 bg-[var(--bg-panel)]/60 space-y-4">
       <h2 style={{ fontFamily: "'Bebas Neue', sans-serif" }} className="text-2xl text-[var(--accent)] flex items-center gap-2">
         <LogIn size={20} /> Inloggen
       </h2>
       <div>
         <label className="text-xs text-emerald-400">Wie ben jij?</label>
-        <select value={playerId} onChange={(e) => setPlayerId(e.target.value)} className="w-full mt-1 bg-emerald-950 border border-emerald-700 rounded px-3 py-2 text-sm">
+        <select value={playerId} onChange={(e) => setPlayerId(e.target.value)} className="w-full mt-1 bg-emerald-950 border border-[var(--highlight)]/60 rounded px-3 py-2 text-sm">
           {players.map((p) => (
             <option key={p.id} value={p.id}>{p.name}</option>
           ))}
@@ -945,7 +993,7 @@ function LoginForm({ players, onLogin, showToast }) {
           value={pin}
           onChange={(e) => setPin(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && submit()}
-          className="w-full mt-1 bg-emerald-950 border border-emerald-700 rounded px-3 py-2 text-sm"
+          className="w-full mt-1 bg-emerald-950 border border-[var(--highlight)]/60 rounded px-3 py-2 text-sm"
           placeholder="4 cijfers"
         />
       </div>
@@ -973,25 +1021,25 @@ function RegisterForm({ onRegister }) {
   }
 
   return (
-    <div className="border border-emerald-800 rounded-md p-5 bg-[var(--bg-panel)]/60 space-y-4">
+    <div className="border border-[var(--highlight-soft)] rounded-md p-5 bg-[var(--bg-panel)]/60 space-y-4">
       <h2 style={{ fontFamily: "'Bebas Neue', sans-serif" }} className="text-2xl text-[var(--accent)]">Meld je aan</h2>
       <p className="text-sm text-emerald-300">
         Kies je naam, je championship team, je rooting team en een pincode van 4 cijfers zodat niemand anders voor jou kan kiezen.
       </p>
       <div>
         <label className="text-xs text-emerald-400">Naam</label>
-        <input value={name} onChange={(e) => setName(e.target.value)} className="w-full mt-1 bg-emerald-950 border border-emerald-700 rounded px-3 py-2 text-sm" placeholder="Bv. Niels" />
+        <input value={name} onChange={(e) => setName(e.target.value)} className="w-full mt-1 bg-emerald-950 border border-[var(--highlight)]/60 rounded px-3 py-2 text-sm" placeholder="Bv. Niels" />
       </div>
       <div>
         <label className="text-xs text-emerald-400">Championship team</label>
-        <select value={championshipTeam} onChange={(e) => setChampionshipTeam(e.target.value)} className="w-full mt-1 bg-emerald-950 border border-emerald-700 rounded px-3 py-2 text-sm">
+        <select value={championshipTeam} onChange={(e) => setChampionshipTeam(e.target.value)} className="w-full mt-1 bg-emerald-950 border border-[var(--highlight)]/60 rounded px-3 py-2 text-sm">
           <option value="">Kies een team…</option>
           {TEAMS.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
       </div>
       <div>
         <label className="text-xs text-emerald-400">Rooting team</label>
-        <select value={rootingTeam} onChange={(e) => setRootingTeam(e.target.value)} className="w-full mt-1 bg-emerald-950 border border-emerald-700 rounded px-3 py-2 text-sm">
+        <select value={rootingTeam} onChange={(e) => setRootingTeam(e.target.value)} className="w-full mt-1 bg-emerald-950 border border-[var(--highlight)]/60 rounded px-3 py-2 text-sm">
           <option value="">Kies een team…</option>
           {TEAMS.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
@@ -1002,7 +1050,7 @@ function RegisterForm({ onRegister }) {
           type="password"
           value={pin}
           onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
-          className="w-full mt-1 bg-emerald-950 border border-emerald-700 rounded px-3 py-2 text-sm"
+          className="w-full mt-1 bg-emerald-950 border border-[var(--highlight)]/60 rounded px-3 py-2 text-sm"
           placeholder="Bv. 1234"
         />
       </div>
@@ -1034,7 +1082,7 @@ function OverzichtTab({ week, weekGames, weekNum, players, picks }) {
   if (!locked) {
     return (
       <div className="space-y-4">
-        <div className="border border-emerald-800 rounded-md p-4 bg-[var(--bg-panel)]/60 flex items-center gap-2 text-sm text-emerald-300">
+        <div className="border border-[var(--highlight-soft)] rounded-md p-4 bg-[var(--bg-panel)]/60 flex items-center gap-2 text-sm text-emerald-300">
           <EyeOff size={16} className="text-[var(--accent)] shrink-0" />
           Ieders keuzes voor Week {weekNum} worden pas zichtbaar zodra de deadline ({fmtDeadline(week.deadline)}) verstreken is — zo kan niemand nog overschrijven van een ander.
         </div>
@@ -1047,7 +1095,7 @@ function OverzichtTab({ week, weekGames, weekNum, players, picks }) {
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm border border-emerald-800 rounded-md overflow-hidden">
+      <table className="w-full text-sm border border-[var(--highlight-soft)] rounded-md overflow-hidden">
         <thead className="bg-[var(--bg-panel)]/90 text-emerald-400 text-xs uppercase tracking-wide">
           <tr>
             <th className="text-left px-3 py-2">Wedstrijd</th>
@@ -1059,7 +1107,7 @@ function OverzichtTab({ week, weekGames, weekNum, players, picks }) {
         </thead>
         <tbody>
           {weekGames.map((g, idx) => (
-            <tr key={g.id} className="border-t border-emerald-800">
+            <tr key={g.id} className="border-t border-[var(--highlight-soft)]">
               <td className="px-3 py-2 text-emerald-300 whitespace-nowrap">
                 {idx + 1}. {g.away_team.split(" ").slice(-1)} @ {g.home_team.split(" ").slice(-1)}
               </td>
@@ -1140,7 +1188,7 @@ function PuntenTab({ week, weekGames, weekNum, players, me, picks, rootingResult
   return (
     <div>
       {!locked && (
-        <div className="mb-4 flex items-center gap-2 bg-[var(--bg-panel)]/60 border border-emerald-800 rounded px-3 py-2 text-sm text-emerald-300">
+        <div className="mb-4 flex items-center gap-2 bg-[var(--bg-panel)]/60 border border-[var(--highlight-soft)] rounded px-3 py-2 text-sm text-emerald-300">
           <EyeOff size={16} className="text-[var(--accent)] shrink-0" />
           Je ziet nu enkel je eigen puntentelling — die van anderen wordt zichtbaar na de deadline van deze week.
         </div>
@@ -1150,7 +1198,7 @@ function PuntenTab({ week, weekGames, weekNum, players, me, picks, rootingResult
         <select
           value={selectedId}
           onChange={(e) => setSelectedId(e.target.value)}
-          className="mb-4 bg-emerald-950 border border-emerald-700 rounded px-3 py-2 text-sm"
+          className="mb-4 bg-emerald-950 border border-[var(--highlight)]/60 rounded px-3 py-2 text-sm"
         >
           {players.map((p) => (
             <option key={p.id} value={p.id}>{p.name}</option>
@@ -1159,7 +1207,7 @@ function PuntenTab({ week, weekGames, weekNum, players, me, picks, rootingResult
       )}
 
       <div className="overflow-x-auto">
-        <table className="w-full text-sm border border-emerald-800 rounded-md overflow-hidden min-w-[480px]">
+        <table className="w-full text-sm border border-[var(--highlight-soft)] rounded-md overflow-hidden min-w-[480px]">
           <thead className="bg-[var(--bg-panel)]/90 text-emerald-400 text-xs uppercase tracking-wide">
             <tr>
               <th className="text-left px-3 py-2">Wedstrijd</th>
@@ -1170,7 +1218,7 @@ function PuntenTab({ week, weekGames, weekNum, players, me, picks, rootingResult
           </thead>
           <tbody>
             {rows.map(({ idx, game, pick, pts }) => (
-              <tr key={game.id} className="border-t border-emerald-800">
+              <tr key={game.id} className="border-t border-[var(--highlight-soft)]">
                 <td className="px-3 py-2 text-emerald-200">
                   Wedstrijd {idx + 1}: {game.away_team} @ {game.home_team}
                 </td>
@@ -1205,7 +1253,7 @@ function PuntenTab({ week, weekGames, weekNum, players, me, picks, rootingResult
                 <td className="px-3 py-2 text-right font-medium text-emerald-50">{pts === null ? "–" : pts}</td>
               </tr>
             ))}
-            <tr className="border-t border-emerald-800 bg-[var(--bg-panel)]/40">
+            <tr className="border-t border-[var(--highlight-soft)] bg-[var(--bg-panel)]/40">
               <td className="px-3 py-2 text-emerald-200">Rooting team ({player.rooting_team})</td>
               <td className="px-3 py-2 text-emerald-300">{rooting ? ROOTING_LABELS[rooting.outcome] : "nog niet bekend"}</td>
               <td className="px-3 py-2"></td>
@@ -1213,7 +1261,7 @@ function PuntenTab({ week, weekGames, weekNum, players, me, picks, rootingResult
                 {rootingPts === null ? "–" : rootingPts > 0 ? `+${rootingPts}` : rootingPts}
               </td>
             </tr>
-            <tr className="border-t border-emerald-700">
+            <tr className="border-t border-[var(--highlight)]/60">
               <td colSpan={3} className="px-3 py-2 font-semibold text-[var(--accent)]">Totaal deze week</td>
               <td className="px-3 py-2 text-right font-bold text-[var(--accent)]">{total}</td>
             </tr>
@@ -1255,7 +1303,7 @@ function StandTab({ players, weeks, games, picks, rootingResults }) {
 
   return (
     <div>
-      <div className="border border-emerald-800 rounded-md overflow-x-auto">
+      <div className="border border-[var(--highlight-soft)] rounded-md overflow-x-auto">
         <table className="w-full text-sm min-w-[420px]">
           <thead className="bg-[var(--bg-panel)]/90 text-emerald-400 text-xs uppercase tracking-wide">
             <tr>
@@ -1267,7 +1315,7 @@ function StandTab({ players, weeks, games, picks, rootingResults }) {
           </thead>
           <tbody>
             {rows.map((r, i) => (
-              <tr key={r.player.id} className="border-t border-emerald-800">
+              <tr key={r.player.id} className="border-t border-[var(--highlight-soft)]">
                 <td className="px-3 py-2 text-emerald-400">{i + 1}</td>
                 <td className="px-3 py-2 flex items-center gap-1.5">
                   {i === 0 && <Trophy size={14} className="text-[var(--accent)]" />}
@@ -1283,15 +1331,15 @@ function StandTab({ players, weeks, games, picks, rootingResults }) {
 
       {rows.length >= 2 && (
         <div className="mt-4 grid sm:grid-cols-3 gap-3 text-xs text-emerald-300">
-          <div className="border border-emerald-800 rounded p-3 flex items-center gap-2">
+          <div className="border border-[var(--highlight-soft)] rounded p-3 flex items-center gap-2">
             <Trophy size={16} className="text-[var(--accent)]" />
             <span><span className="text-emerald-100 font-medium">{rows[0].player.name}</span> is voorlopig "King of the NFL".</span>
           </div>
-          <div className="border border-emerald-800 rounded p-3 flex items-center gap-2">
+          <div className="border border-[var(--highlight-soft)] rounded p-3 flex items-center gap-2">
             <Beer size={16} className="text-[var(--accent)]" />
             <span><span className="text-emerald-100 font-medium">{rows[1].player.name}</span> voorziet voorlopig de drank.</span>
           </div>
-          <div className="border border-emerald-800 rounded p-3 flex items-center gap-2">
+          <div className="border border-[var(--highlight-soft)] rounded p-3 flex items-center gap-2">
             <UtensilsCrossed size={16} className="text-[var(--accent)]" />
             <span>
               <span className="text-emerald-100 font-medium">{rows[rows.length - (rows.length >= 3 ? 2 : 1)].player.name}</span>{" "}
@@ -1342,7 +1390,7 @@ function ReglementTab() {
 
 function Section({ title, children }) {
   return (
-    <div className="border border-emerald-800 rounded-md p-4 bg-[var(--bg-panel)]/60">
+    <div className="border border-[var(--highlight-soft)] rounded-md p-4 bg-[var(--bg-panel)]/60">
       <h3 className="text-[var(--accent)] font-semibold mb-1.5">{title}</h3>
       <div>{children}</div>
     </div>
@@ -1402,7 +1450,7 @@ function BeheerTab({ weeks, games, players, picks, activeWeek, rootingTeams, roo
         gemist, of een uitslag verkeerd staat.
       </div>
 
-      <div className="border border-emerald-800 rounded-md p-4 bg-[var(--bg-panel)]/60">
+      <div className="border border-[var(--highlight-soft)] rounded-md p-4 bg-[var(--bg-panel)]/60">
         <h3 className="text-[var(--accent)] font-semibold mb-1">
           Double point games — {currentPeriod.label}
         </h3>
@@ -1423,7 +1471,7 @@ function BeheerTab({ weeks, games, players, picks, activeWeek, rootingTeams, roo
               </thead>
               <tbody>
                 {dpgOverview.map(({ player, pick, game }) => (
-                  <tr key={player.id} className="border-t border-emerald-800/60">
+                  <tr key={player.id} className="border-t border-[var(--highlight-soft)]/60">
                     <td className="py-1.5 pr-3 text-emerald-100">{player.name}</td>
                     <td className="py-1.5 pr-3">
                       {pick ? (
@@ -1445,31 +1493,31 @@ function BeheerTab({ weeks, games, players, picks, activeWeek, rootingTeams, roo
         )}
       </div>
 
-      <div className="border border-emerald-800 rounded-md p-4 bg-[var(--bg-panel)]/60">
+      <div className="border border-[var(--highlight-soft)] rounded-md p-4 bg-[var(--bg-panel)]/60">
         <h3 className="text-[var(--accent)] font-semibold mb-3">Week handmatig toevoegen</h3>
         <div className="grid grid-cols-2 gap-3 mb-3">
           <div>
             <label className="text-xs text-emerald-400">Weeknummer</label>
-            <input type="number" value={newWeekNum} onChange={(e) => setNewWeekNum(e.target.value)} className="w-full mt-1 bg-emerald-950 border border-emerald-700 rounded px-3 py-2 text-sm" />
+            <input type="number" value={newWeekNum} onChange={(e) => setNewWeekNum(e.target.value)} className="w-full mt-1 bg-emerald-950 border border-[var(--highlight)]/60 rounded px-3 py-2 text-sm" />
           </div>
           <div>
             <label className="text-xs text-emerald-400">Deadline (1e kickoff)</label>
-            <input type="datetime-local" value={deadline} onChange={(e) => setDeadline(e.target.value)} className="w-full mt-1 bg-emerald-950 border border-emerald-700 rounded px-3 py-2 text-sm" />
+            <input type="datetime-local" value={deadline} onChange={(e) => setDeadline(e.target.value)} className="w-full mt-1 bg-emerald-950 border border-[var(--highlight)]/60 rounded px-3 py-2 text-sm" />
           </div>
         </div>
         <div className="space-y-2">
           {draftGames.map((g, idx) => (
             <div key={idx} className="flex flex-wrap gap-2 items-center">
-              <select value={g.away} onChange={(e) => updateDraftGame(idx, "away", e.target.value)} className="flex-1 min-w-[140px] bg-emerald-950 border border-emerald-700 rounded px-2 py-1.5 text-xs">
+              <select value={g.away} onChange={(e) => updateDraftGame(idx, "away", e.target.value)} className="flex-1 min-w-[140px] bg-emerald-950 border border-[var(--highlight)]/60 rounded px-2 py-1.5 text-xs">
                 <option value="">Uitploeg…</option>
                 {TEAMS.map((t) => <option key={t}>{t}</option>)}
               </select>
               <span className="text-emerald-500 text-xs">@</span>
-              <select value={g.home} onChange={(e) => updateDraftGame(idx, "home", e.target.value)} className="flex-1 min-w-[140px] bg-emerald-950 border border-emerald-700 rounded px-2 py-1.5 text-xs">
+              <select value={g.home} onChange={(e) => updateDraftGame(idx, "home", e.target.value)} className="flex-1 min-w-[140px] bg-emerald-950 border border-[var(--highlight)]/60 rounded px-2 py-1.5 text-xs">
                 <option value="">Thuisploeg…</option>
                 {TEAMS.map((t) => <option key={t}>{t}</option>)}
               </select>
-              <input placeholder="Bv. Cowboys -2.5" value={g.spread} onChange={(e) => updateDraftGame(idx, "spread", e.target.value)} className="w-28 bg-emerald-950 border border-emerald-700 rounded px-2 py-1.5 text-xs" />
+              <input placeholder="Bv. Cowboys -2.5" value={g.spread} onChange={(e) => updateDraftGame(idx, "spread", e.target.value)} className="w-28 bg-emerald-950 border border-[var(--highlight)]/60 rounded px-2 py-1.5 text-xs" />
               <button onClick={() => removeDraftGame(idx)} className="text-emerald-500 hover:text-red-400">
                 <Trash2 size={14} />
               </button>
@@ -1485,7 +1533,7 @@ function BeheerTab({ weeks, games, players, picks, activeWeek, rootingTeams, roo
       </div>
 
       {sortedWeeks.map((wk) => (
-        <div key={wk.week_num} className="border border-emerald-800 rounded-md p-4 bg-[var(--bg-panel)]/60">
+        <div key={wk.week_num} className="border border-[var(--highlight-soft)] rounded-md p-4 bg-[var(--bg-panel)]/60">
           <h3 className="text-[var(--accent)] font-semibold mb-3">Week {wk.week_num}</h3>
           <div className="space-y-2">
             {games.filter((g) => g.week_num === wk.week_num).map((g) => (
@@ -1505,7 +1553,7 @@ function BeheerTab({ weeks, games, players, picks, activeWeek, rootingTeams, roo
                       <select
                         value={current?.outcome || ""}
                         onChange={(e) => onSaveRooting(wk.week_num, team, e.target.value)}
-                        className="bg-emerald-950 border border-emerald-700 rounded px-2 py-1 text-xs"
+                        className="bg-emerald-950 border border-[var(--highlight)]/60 rounded px-2 py-1 text-xs"
                       >
                         <option value="">– (nog niet bekend)</option>
                         <option value="win">Gewonnen (+1)</option>
@@ -1522,7 +1570,7 @@ function BeheerTab({ weeks, games, players, picks, activeWeek, rootingTeams, roo
         </div>
       ))}
 
-      <div className="border border-emerald-800 rounded-md p-4 bg-[var(--bg-panel)]/60">
+      <div className="border border-[var(--highlight-soft)] rounded-md p-4 bg-[var(--bg-panel)]/60">
         <h3 className="text-[var(--accent)] font-semibold mb-3">Spelers</h3>
         {players.length === 0 && <p className="text-sm text-emerald-400">Nog niemand aangemeld.</p>}
         <div className="space-y-1.5">
@@ -1552,9 +1600,9 @@ function ResultRow({ game, onSave }) {
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm">
       <span className="flex-1 min-w-[120px] truncate">{game.away_team} @ {game.home_team}</span>
-      <input type="number" value={away} onChange={(e) => setAway(e.target.value)} placeholder="Uit" className="w-16 bg-emerald-950 border border-emerald-700 rounded px-2 py-1 text-xs" />
+      <input type="number" value={away} onChange={(e) => setAway(e.target.value)} placeholder="Uit" className="w-16 bg-emerald-950 border border-[var(--highlight)]/60 rounded px-2 py-1 text-xs" />
       <span className="text-emerald-500">–</span>
-      <input type="number" value={home} onChange={(e) => setHome(e.target.value)} placeholder="Thuis" className="w-16 bg-emerald-950 border border-emerald-700 rounded px-2 py-1 text-xs" />
+      <input type="number" value={home} onChange={(e) => setHome(e.target.value)} placeholder="Thuis" className="w-16 bg-emerald-950 border border-[var(--highlight)]/60 rounded px-2 py-1 text-xs" />
       <button
         onClick={() => onSave(game.id, home, away)}
         disabled={home === "" || away === ""}
@@ -1572,7 +1620,7 @@ function ResultRow({ game, onSave }) {
 
 function EmptyState({ title, body }) {
   return (
-    <div className="border border-dashed border-emerald-700 rounded-md p-8 text-center">
+    <div className="border border-dashed border-[var(--highlight)]/60 rounded-md p-8 text-center">
       <h3 className="text-[var(--accent)] font-semibold mb-1">{title}</h3>
       <p className="text-sm text-emerald-300">{body}</p>
     </div>
