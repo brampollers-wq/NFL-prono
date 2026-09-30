@@ -220,16 +220,16 @@ function hslToHex(h, s, l) {
   return `#${toHex(f(0))}${toHex(f(8))}${toHex(f(4))}`;
 }
 
-// Zet een kleur om naar een specifieke helderheid (en optioneel een
-// verzadigingsvenster), met behoud van de oorspronkelijke tint (hue) — puur
-// zwart of wit bijmengen (zoals mixWith) doet verschillende clubkleuren
-// allemaal naar hetzelfde grijs convergeren. Door in HSL te werken en enkel
-// de helderheid te sturen, blijft elk team zijn eigen herkenbare kleurtint
-// houden, of die nu heel donker of heel fel moet worden.
-function toneFrom(hex, lightness, { minS = 0, maxS = 78 } = {}) {
+// Verdonkert een kleur voor gebruik als achtergrond, met behoud van de
+// oorspronkelijke tint (hue) — puur zwart bijmengen (zoals mixWith) doet
+// verschillende donkere clubkleuren (navy, zwart, bruin) allemaal naar
+// hetzelfde grijszwart convergeren. Door in HSL te werken en enkel de
+// helderheid te verlagen, blijft elk team zijn eigen herkenbare, zij het
+// donkere, kleurtint houden.
+function darkBgFrom(hex, lightness) {
   const { h, s } = hexToHsl(hex);
-  const clampedSaturation = Math.max(minS, Math.min(s, maxS));
-  return hslToHex(h, clampedSaturation, lightness);
+  const cappedSaturation = Math.min(s, 78);
+  return hslToHex(h, cappedSaturation, lightness);
 }
 
 // Zwart of wit tekst, naargelang wat het meeste contrast geeft op de
@@ -240,96 +240,32 @@ function contrastText(hex) {
   return luminance > 0.6 ? "#0c0a09" : "#ffffff";
 }
 
-// Relatieve luminantie zoals WCAG die berekent — dit is een betere maat voor
-// hoe "licht" een kleur oogt dan de HSL-helderheid, want bij eenzelfde
-// HSL-helderheid oogt blauw/paars veel donkerder dan geel/oranje (het
-// menselijk oog is veel gevoeliger voor groen dan voor blauw).
-function relLuminance(hex) {
-  const { r, g, b } = hexToRgb(hex);
-  const lin = (c) => {
-    c /= 255;
-    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
-  };
-  return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
-}
-
-// Zoekt, voor een vaste tint/verzadiging, de HSL-helderheid die een gewenste
-// relatieve luminantie oplevert. Hierdoor krijgen alle teams — ongeacht of
-// hun clubkleur van zichzelf donker (Ravens-paars) of licht (Steelers-goud)
-// is — een even fel/leesbaar resultaat, in plaats van dat sommige teams per
-// ongeluk op een veel te donkere of te lichte tint uitkomen.
-function hslForLuminance(h, s, targetLuminance) {
-  let lo = 0;
-  let hi = 100;
-  for (let i = 0; i < 20; i++) {
-    const mid = (lo + hi) / 2;
-    const candidate = hslToHex(h, s, mid);
-    if (relLuminance(candidate) < targetLuminance) lo = mid;
-    else hi = mid;
-  }
-  return hslToHex(h, s, (lo + hi) / 2);
-}
-
-// Doelluminanties voor de vier "lagen" van het thema — zo gekozen dat er
-// altijd minstens zo'n 4:1 contrast zit tussen elke tekstkleur en elke
-// achtergrondkleur, voor elk team, ongeacht de tint van de clubkleuren.
-const BG_DARK_LUMINANCE = 0.4;
-const BG_PANEL_LUMINANCE = 0.52;
-const TEXT_STRONG_LUMINANCE = 0.035;
-const TEXT_SOFT_LUMINANCE = 0.065;
-const HIGHLIGHT_LUMINANCE = 0.1;
-
-// Berekent alle CSS-variabelen voor de kleurpersonalisatie op basis van een
-// rooting team. Opzet ("jersey"-gevoel): de FELLE hoofdkleur van het team is
-// nu de achtergrond van de hele app (in plaats van een subtiele donkere
-// tint), en de donkere kleur van het team wordt de tekstkleur — zo springt
-// het team er echt uit, in plaats van amper zichtbaar te zijn. De helderheid
-// van elke laag wordt via relLuminance/hslForLuminance bepaald (niet zomaar
-// een vaste HSL-waarde), zodat het contrast tussen tekst en achtergrond voor
-// alle 32 teams betrouwbaar leesbaar blijft.
+// Berekent alle CSS-variabelen voor de accentkleur op basis van een team.
 function accentVarsForTeam(teamName) {
-  const primary = TEAM_COLORS[teamName] || DEFAULT_ACCENT;
-  // Donkere/secundaire clubkleur (bv. Broncos-navy, Steelers-zwart) — wordt
-  // hier NIET meer als achtergrond gebruikt, maar als basis voor de
-  // tekstkleuren en de knoppen, zodat die goed leesbaar blijven op de felle
-  // achtergrond.
-  const dark = TEAM_SECONDARY_COLORS[teamName] || "#1c1917";
+  const base = TEAM_COLORS[teamName] || DEFAULT_ACCENT;
+  // Achtergrond baseert zich op de SECUNDAIRE clubkleur (bv. Broncos-navy,
+  // Eagles-zilver) i.p.v. gewoon een verdonkerde accentkleur — zo krijg je
+  // het echte tweekleurige clubgevoel i.p.v. één kleur in twee tinten.
+  // Geen secundaire kleur gekend? Dan valt het terug op de accentkleur zelf.
+  const bgBase = TEAM_SECONDARY_COLORS[teamName] || base;
   // Derde kleur, gebruikt als aparte "highlight" voor randen/lijnen door de
   // hele app — zo voelt de personalisatie echt als een drieklank i.p.v.
   // enkel accent + achtergrond.
   const highlightBase = TEAM_TERTIARY_COLORS[teamName] || TERTIARY_FALLBACK;
-
-  // Felle, verzadigde achtergrond op basis van de hoofdkleur van het team.
-  const { h: primaryHue, s: primarySatRaw } = hexToHsl(primary);
-  const primarySat = Math.max(45, Math.min(primarySatRaw, 90));
-  const bgDark = hslForLuminance(primaryHue, primarySat, BG_DARK_LUMINANCE);
-  const bgPanel = hslForLuminance(primaryHue, primarySat, BG_PANEL_LUMINANCE);
-
-  // Donkere "inkt"-kleur op basis van de secundaire clubkleur, voor tekst
-  // én knoppen — dit is de kleur die vroeger de achtergrond was, nu
-  // hergebruikt als voorgrondkleur voor een herkenbaar tweekleurig effect.
-  const { h: darkHue, s: darkSatRaw } = hexToHsl(dark);
-  const darkSat = Math.max(0, Math.min(darkSatRaw, 55));
-  const textStrong = hslForLuminance(darkHue, darkSat, TEXT_STRONG_LUMINANCE);
-  const textSoft = hslForLuminance(darkHue, darkSat, TEXT_SOFT_LUMINANCE);
-  const accentBg = textStrong;
-
-  const { h: highlightHue, s: highlightSatRaw } = hexToHsl(highlightBase);
-  const highlightSat = Math.max(30, Math.min(highlightSatRaw, 85));
-  const highlight = hslForLuminance(highlightHue, highlightSat, HIGHLIGHT_LUMINANCE);
-
+  const highlight = mixWith(highlightBase, "#ffffff", 0.15);
   return {
-    "--accent": accentBg,
-    "--accent-hover": mixWith(accentBg, "#ffffff", 0.22),
-    "--accent-border": mixWith(accentBg, "#000000", 0.3),
-    "--accent-soft": rgba(accentBg, 0.15),
-    "--accent-text": contrastText(accentBg),
-    "--bg-dark": bgDark,
-    "--bg-panel": bgPanel,
-    "--text-strong": textStrong,
-    "--text-soft": textSoft,
+    "--accent": base,
+    "--accent-hover": mixWith(base, "#ffffff", 0.2),
+    "--accent-border": mixWith(base, "#000000", 0.25),
+    "--accent-soft": rgba(base, 0.15),
+    "--accent-text": contrastText(base),
+    // Steviger, beter zichtbare achtergrondtint (minder "subtiel" dan
+    // voorheen) — nog steeds donker genoeg voor het thema, met behoud van
+    // de leesbaarheid van de bestaande emerald-tekstkleuren.
+    "--bg-dark": darkBgFrom(bgBase, 11),
+    "--bg-panel": darkBgFrom(bgBase, 18),
     "--highlight": highlight,
-    "--highlight-soft": rgba(highlightBase, 0.4),
+    "--highlight-soft": rgba(highlightBase, 0.45),
   };
 }
 
@@ -625,7 +561,7 @@ export default function App() {
   const rootingTeams = Array.from(new Set(players.map((p) => p.rooting_team).filter(Boolean))).sort();
 
   return (
-    <div className="min-h-screen bg-[var(--bg-dark)] text-[var(--text-strong)] pb-16">
+    <div className="min-h-screen bg-[var(--bg-dark)] text-emerald-50 pb-16">
       <Header
         weekNums={weekNums}
         activeWeek={activeWeek}
@@ -706,7 +642,7 @@ export default function App() {
         )}
       </main>
 
-      <div className="fixed bottom-4 right-4 flex items-center gap-1.5 text-xs text-[var(--text-strong)]0">
+      <div className="fixed bottom-4 right-4 flex items-center gap-1.5 text-xs text-emerald-500">
         <Wifi size={13} /> live verbonden
       </div>
 
@@ -741,7 +677,7 @@ function AccessGate({ onUnlock }) {
             NFL Pronostiek
           </h1>
         </div>
-        <p className="text-sm text-[var(--text-soft)] mb-4">Voer de groepstoegangscode in om verder te gaan.</p>
+        <p className="text-sm text-emerald-300 mb-4">Voer de groepstoegangscode in om verder te gaan.</p>
         <input
           type="password"
           value={input}
@@ -776,11 +712,11 @@ function Header({ weekNums, activeWeek, setActiveWeek, me, onLogout }) {
           <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: "0.03em" }} className="text-4xl text-[var(--accent)] leading-none">
             NFL Pronostiek
           </h1>
-          <p className="text-[var(--text-soft)] text-sm mt-1">
+          <p className="text-emerald-300 text-sm mt-1">
             {me ? (
               <>
-                Ingelogd als <span className="text-[var(--text-strong)] font-medium">{me.name}</span>{" "}
-                <button onClick={onLogout} className="underline text-[var(--text-soft)] hover:text-[var(--accent)] ml-1">
+                Ingelogd als <span className="text-emerald-100 font-medium">{me.name}</span>{" "}
+                <button onClick={onLogout} className="underline text-emerald-400 hover:text-[var(--accent)] ml-1">
                   (wissel speler)
                 </button>
               </>
@@ -794,17 +730,17 @@ function Header({ weekNums, activeWeek, setActiveWeek, me, onLogout }) {
             <button
               disabled={idx <= 0}
               onClick={() => setActiveWeek(weekNums[idx - 1])}
-              className="p-1.5 rounded border border-[var(--highlight)]/60 disabled:opacity-30 hover:bg-[var(--accent-soft)]"
+              className="p-1.5 rounded border border-[var(--highlight)]/60 disabled:opacity-30 hover:bg-emerald-800"
             >
               <ChevronLeft size={16} />
             </button>
-            <div style={{ fontFamily: "'Bebas Neue', sans-serif" }} className="text-2xl w-24 text-center text-[var(--text-strong)] border border-[var(--highlight)]/60 rounded px-2 py-0.5">
+            <div style={{ fontFamily: "'Bebas Neue', sans-serif" }} className="text-2xl w-24 text-center text-emerald-50 border border-[var(--highlight)]/60 rounded px-2 py-0.5">
               Week {activeWeek}
             </div>
             <button
               disabled={idx >= weekNums.length - 1}
               onClick={() => setActiveWeek(weekNums[idx + 1])}
-              className="p-1.5 rounded border border-[var(--highlight)]/60 disabled:opacity-30 hover:bg-[var(--accent-soft)]"
+              className="p-1.5 rounded border border-[var(--highlight)]/60 disabled:opacity-30 hover:bg-emerald-800"
             >
               <ChevronRight size={16} />
             </button>
@@ -821,7 +757,7 @@ function TabButton({ icon, label, active, onClick }) {
       onClick={onClick}
       className={
         "flex items-center gap-1.5 text-sm px-3 py-2 border-b-2 -mb-px transition-colors whitespace-nowrap shrink-0 " +
-        (active ? "border-[var(--accent)] text-[var(--accent)]" : "border-transparent text-[var(--text-soft)] hover:text-[var(--text-strong)]")
+        (active ? "border-[var(--accent)] text-[var(--accent)]" : "border-transparent text-emerald-400 hover:text-emerald-100")
       }
     >
       {icon}
@@ -909,12 +845,12 @@ function PicksTab({ week, weekGames, weekNum, players, me, picks, savePicks, onR
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <div className="text-sm text-[var(--text-soft)] flex items-center gap-1.5">
+        <div className="text-sm text-emerald-300 flex items-center gap-1.5">
           {locked ? <Lock size={14} /> : null}
-          Deadline: <span className="text-[var(--text-strong)]">{fmtDeadline(week.deadline)}</span>
+          Deadline: <span className="text-emerald-100">{fmtDeadline(week.deadline)}</span>
         </div>
         {period && (
-          <div className={"text-xs px-2 py-1 rounded border " + (periodUsedElsewhere ? "border-[var(--highlight-soft)] text-[var(--text-strong)]0" : "border-[var(--accent-border)] text-[var(--accent)]")}>
+          <div className={"text-xs px-2 py-1 rounded border " + (periodUsedElsewhere ? "border-[var(--highlight-soft)] text-emerald-500" : "border-[var(--accent-border)] text-[var(--accent)]")}>
             Dubbele-puntenvenster: {PERIODS.find((p) => p.id === period).label}
             {periodUsedElsewhere ? " (al gebruikt)" : ""}
             {!periodUsedElsewhere && weeklyCapReached && !doubleGameId
@@ -925,7 +861,7 @@ function PicksTab({ week, weekGames, weekNum, players, me, picks, savePicks, onR
       </div>
 
       {locked && (
-        <div className="mb-4 text-sm bg-[var(--bg-panel)]/90 border border-[var(--highlight-soft)] rounded px-3 py-2 text-[var(--text-soft)]">
+        <div className="mb-4 text-sm bg-[var(--bg-panel)]/90 border border-[var(--highlight-soft)] rounded px-3 py-2 text-emerald-300">
           De deadline voor deze week is verstreken.
         </div>
       )}
@@ -934,15 +870,15 @@ function PicksTab({ week, weekGames, weekNum, players, me, picks, savePicks, onR
         {weekGames.map((g, idx) => (
           <div key={g.id} className="border border-[var(--highlight-soft)] rounded-md p-3 bg-[var(--bg-panel)]/60">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-sm text-[var(--text-strong)] font-medium">
+              <span className="text-sm text-emerald-200 font-medium">
                 Wedstrijd {idx + 1}: {g.away_team} @ {g.home_team}
               </span>
               {g.commence_time && (
-                <span className="text-xs text-[var(--text-soft)]">{fmtKickoff(g.commence_time)}</span>
+                <span className="text-xs text-emerald-400">{fmtKickoff(g.commence_time)}</span>
               )}
             </div>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-[var(--text-soft)]">{g.spread ? `Spread: ${g.spread}` : "Geen spread"}</span>
+              <span className="text-xs text-emerald-400">{g.spread ? `Spread: ${g.spread}` : "Geen spread"}</span>
               <button
                 onClick={() => toggleDouble(g.id)}
                 disabled={
@@ -954,7 +890,7 @@ function PicksTab({ week, weekGames, weekNum, players, me, picks, savePicks, onR
                 }
                 className={
                   "flex items-center gap-1 text-xs px-2 py-1 rounded border disabled:opacity-30 " +
-                  (doubleGameId === g.id ? "bg-[var(--accent)] text-[var(--accent-text)] border-[var(--accent)]" : "border-[var(--highlight)]/60 text-[var(--text-soft)] hover:border-[var(--accent-hover)]")
+                  (doubleGameId === g.id ? "bg-[var(--accent)] text-emerald-950 border-[var(--accent)]" : "border-[var(--highlight)]/60 text-emerald-300 hover:border-[var(--accent-hover)]")
                 }
               >
                 <Flame size={13} />
@@ -977,7 +913,7 @@ function PicksTab({ week, weekGames, weekNum, players, me, picks, savePicks, onR
               ))}
             </div>
             {g.status === "final" && (
-              <div className="mt-2 text-xs text-[var(--text-soft)]">
+              <div className="mt-2 text-xs text-emerald-400">
                 Eindstand: {g.away_team} {g.away_score} – {g.home_score} {g.home_team}
               </div>
             )}
@@ -1003,7 +939,7 @@ function PlayerGate({ players, onRegister, onLogin, showToast }) {
       <div>
         <RegisterForm onRegister={onRegister} />
         {players.length > 0 && (
-          <button onClick={() => setMode("login")} className="mt-3 text-xs text-[var(--text-soft)] hover:text-[var(--accent)] underline">
+          <button onClick={() => setMode("login")} className="mt-3 text-xs text-emerald-400 hover:text-[var(--accent)] underline">
             Ik ben al geregistreerd
           </button>
         )}
@@ -1014,7 +950,7 @@ function PlayerGate({ players, onRegister, onLogin, showToast }) {
   return (
     <div>
       <LoginForm players={players} onLogin={onLogin} showToast={showToast} />
-      <button onClick={() => setMode("register")} className="mt-3 text-xs text-[var(--text-soft)] hover:text-[var(--accent)] underline">
+      <button onClick={() => setMode("register")} className="mt-3 text-xs text-emerald-400 hover:text-[var(--accent)] underline">
         Nieuwe speler? Meld je hier aan
       </button>
     </div>
@@ -1043,21 +979,21 @@ function LoginForm({ players, onLogin, showToast }) {
         <LogIn size={20} /> Inloggen
       </h2>
       <div>
-        <label className="text-xs text-[var(--text-soft)]">Wie ben jij?</label>
-        <select value={playerId} onChange={(e) => setPlayerId(e.target.value)} className="w-full mt-1 bg-[var(--accent-border)] text-[var(--accent-text)] border border-[var(--highlight)]/60 rounded px-3 py-2 text-sm">
+        <label className="text-xs text-emerald-400">Wie ben jij?</label>
+        <select value={playerId} onChange={(e) => setPlayerId(e.target.value)} className="w-full mt-1 bg-emerald-950 border border-[var(--highlight)]/60 rounded px-3 py-2 text-sm">
           {players.map((p) => (
             <option key={p.id} value={p.id}>{p.name}</option>
           ))}
         </select>
       </div>
       <div>
-        <label className="text-xs text-[var(--text-soft)]">Pincode</label>
+        <label className="text-xs text-emerald-400">Pincode</label>
         <input
           type="password"
           value={pin}
           onChange={(e) => setPin(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && submit()}
-          className="w-full mt-1 bg-[var(--accent-border)] text-[var(--accent-text)] border border-[var(--highlight)]/60 rounded px-3 py-2 text-sm"
+          className="w-full mt-1 bg-emerald-950 border border-[var(--highlight)]/60 rounded px-3 py-2 text-sm"
           placeholder="4 cijfers"
         />
       </div>
@@ -1087,34 +1023,34 @@ function RegisterForm({ onRegister }) {
   return (
     <div className="border border-[var(--highlight-soft)] rounded-md p-5 bg-[var(--bg-panel)]/60 space-y-4">
       <h2 style={{ fontFamily: "'Bebas Neue', sans-serif" }} className="text-2xl text-[var(--accent)]">Meld je aan</h2>
-      <p className="text-sm text-[var(--text-soft)]">
+      <p className="text-sm text-emerald-300">
         Kies je naam, je championship team, je rooting team en een pincode van 4 cijfers zodat niemand anders voor jou kan kiezen.
       </p>
       <div>
-        <label className="text-xs text-[var(--text-soft)]">Naam</label>
-        <input value={name} onChange={(e) => setName(e.target.value)} className="w-full mt-1 bg-[var(--accent-border)] text-[var(--accent-text)] border border-[var(--highlight)]/60 rounded px-3 py-2 text-sm" placeholder="Bv. Niels" />
+        <label className="text-xs text-emerald-400">Naam</label>
+        <input value={name} onChange={(e) => setName(e.target.value)} className="w-full mt-1 bg-emerald-950 border border-[var(--highlight)]/60 rounded px-3 py-2 text-sm" placeholder="Bv. Niels" />
       </div>
       <div>
-        <label className="text-xs text-[var(--text-soft)]">Championship team</label>
-        <select value={championshipTeam} onChange={(e) => setChampionshipTeam(e.target.value)} className="w-full mt-1 bg-[var(--accent-border)] text-[var(--accent-text)] border border-[var(--highlight)]/60 rounded px-3 py-2 text-sm">
+        <label className="text-xs text-emerald-400">Championship team</label>
+        <select value={championshipTeam} onChange={(e) => setChampionshipTeam(e.target.value)} className="w-full mt-1 bg-emerald-950 border border-[var(--highlight)]/60 rounded px-3 py-2 text-sm">
           <option value="">Kies een team…</option>
           {TEAMS.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
       </div>
       <div>
-        <label className="text-xs text-[var(--text-soft)]">Rooting team</label>
-        <select value={rootingTeam} onChange={(e) => setRootingTeam(e.target.value)} className="w-full mt-1 bg-[var(--accent-border)] text-[var(--accent-text)] border border-[var(--highlight)]/60 rounded px-3 py-2 text-sm">
+        <label className="text-xs text-emerald-400">Rooting team</label>
+        <select value={rootingTeam} onChange={(e) => setRootingTeam(e.target.value)} className="w-full mt-1 bg-emerald-950 border border-[var(--highlight)]/60 rounded px-3 py-2 text-sm">
           <option value="">Kies een team…</option>
           {TEAMS.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
       </div>
       <div>
-        <label className="text-xs text-[var(--text-soft)]">Pincode (4 cijfers)</label>
+        <label className="text-xs text-emerald-400">Pincode (4 cijfers)</label>
         <input
           type="password"
           value={pin}
           onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
-          className="w-full mt-1 bg-[var(--accent-border)] text-[var(--accent-text)] border border-[var(--highlight)]/60 rounded px-3 py-2 text-sm"
+          className="w-full mt-1 bg-emerald-950 border border-[var(--highlight)]/60 rounded px-3 py-2 text-sm"
           placeholder="Bv. 1234"
         />
       </div>
@@ -1146,11 +1082,11 @@ function OverzichtTab({ week, weekGames, weekNum, players, picks }) {
   if (!locked) {
     return (
       <div className="space-y-4">
-        <div className="border border-[var(--highlight-soft)] rounded-md p-4 bg-[var(--bg-panel)]/60 flex items-center gap-2 text-sm text-[var(--text-soft)]">
+        <div className="border border-[var(--highlight-soft)] rounded-md p-4 bg-[var(--bg-panel)]/60 flex items-center gap-2 text-sm text-emerald-300">
           <EyeOff size={16} className="text-[var(--accent)] shrink-0" />
           Ieders keuzes voor Week {weekNum} worden pas zichtbaar zodra de deadline ({fmtDeadline(week.deadline)}) verstreken is — zo kan niemand nog overschrijven van een ander.
         </div>
-        <div className="text-sm text-[var(--text-soft)]">
+        <div className="text-sm text-emerald-400">
           {submittedPlayerIds.size} van {players.length} speler(s) hebben hun picks al ingediend.
         </div>
       </div>
@@ -1160,7 +1096,7 @@ function OverzichtTab({ week, weekGames, weekNum, players, picks }) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm border border-[var(--highlight-soft)] rounded-md overflow-hidden">
-        <thead className="bg-[var(--bg-panel)]/90 text-[var(--text-soft)] text-xs uppercase tracking-wide">
+        <thead className="bg-[var(--bg-panel)]/90 text-emerald-400 text-xs uppercase tracking-wide">
           <tr>
             <th className="text-left px-3 py-2">Wedstrijd</th>
             <th className="text-left px-3 py-2">Datum/uur</th>
@@ -1172,10 +1108,10 @@ function OverzichtTab({ week, weekGames, weekNum, players, picks }) {
         <tbody>
           {weekGames.map((g, idx) => (
             <tr key={g.id} className="border-t border-[var(--highlight-soft)]">
-              <td className="px-3 py-2 text-[var(--text-soft)] whitespace-nowrap">
+              <td className="px-3 py-2 text-emerald-300 whitespace-nowrap">
                 {idx + 1}. {g.away_team.split(" ").slice(-1)} @ {g.home_team.split(" ").slice(-1)}
               </td>
-              <td className="px-3 py-2 text-[var(--text-soft)] text-xs whitespace-nowrap">
+              <td className="px-3 py-2 text-emerald-400 text-xs whitespace-nowrap">
                 {fmtKickoff(g.commence_time) || "–"}
               </td>
               {players.map((p) => {
@@ -1188,7 +1124,7 @@ function OverzichtTab({ week, weekGames, weekNum, players, picks }) {
                         {pick.is_double && <Flame size={12} className="text-[var(--accent)]" />}
                       </span>
                     ) : (
-                      <span className="text-[var(--text-soft)]">–</span>
+                      <span className="text-emerald-600">–</span>
                     )}
                   </td>
                 );
@@ -1252,7 +1188,7 @@ function PuntenTab({ week, weekGames, weekNum, players, me, picks, rootingResult
   return (
     <div>
       {!locked && (
-        <div className="mb-4 flex items-center gap-2 bg-[var(--bg-panel)]/60 border border-[var(--highlight-soft)] rounded px-3 py-2 text-sm text-[var(--text-soft)]">
+        <div className="mb-4 flex items-center gap-2 bg-[var(--bg-panel)]/60 border border-[var(--highlight-soft)] rounded px-3 py-2 text-sm text-emerald-300">
           <EyeOff size={16} className="text-[var(--accent)] shrink-0" />
           Je ziet nu enkel je eigen puntentelling — die van anderen wordt zichtbaar na de deadline van deze week.
         </div>
@@ -1262,7 +1198,7 @@ function PuntenTab({ week, weekGames, weekNum, players, me, picks, rootingResult
         <select
           value={selectedId}
           onChange={(e) => setSelectedId(e.target.value)}
-          className="mb-4 bg-[var(--accent-border)] text-[var(--accent-text)] border border-[var(--highlight)]/60 rounded px-3 py-2 text-sm"
+          className="mb-4 bg-emerald-950 border border-[var(--highlight)]/60 rounded px-3 py-2 text-sm"
         >
           {players.map((p) => (
             <option key={p.id} value={p.id}>{p.name}</option>
@@ -1272,7 +1208,7 @@ function PuntenTab({ week, weekGames, weekNum, players, me, picks, rootingResult
 
       <div className="overflow-x-auto">
         <table className="w-full text-sm border border-[var(--highlight-soft)] rounded-md overflow-hidden min-w-[480px]">
-          <thead className="bg-[var(--bg-panel)]/90 text-[var(--text-soft)] text-xs uppercase tracking-wide">
+          <thead className="bg-[var(--bg-panel)]/90 text-emerald-400 text-xs uppercase tracking-wide">
             <tr>
               <th className="text-left px-3 py-2">Wedstrijd</th>
               <th className="text-left px-3 py-2">Uitslag</th>
@@ -1283,10 +1219,10 @@ function PuntenTab({ week, weekGames, weekNum, players, me, picks, rootingResult
           <tbody>
             {rows.map(({ idx, game, pick, pts }) => (
               <tr key={game.id} className="border-t border-[var(--highlight-soft)]">
-                <td className="px-3 py-2 text-[var(--text-strong)]">
+                <td className="px-3 py-2 text-emerald-200">
                   Wedstrijd {idx + 1}: {game.away_team} @ {game.home_team}
                 </td>
-                <td className="px-3 py-2 text-[var(--text-soft)]">
+                <td className="px-3 py-2 text-emerald-300">
                   {game.status === "final" ? `${game.away_score} – ${game.home_score}` : "nog te spelen"}
                 </td>
                 <td className="px-3 py-2">
@@ -1311,17 +1247,17 @@ function PuntenTab({ week, weekGames, weekNum, players, me, picks, rootingResult
                       )}
                     </span>
                   ) : (
-                    <span className="text-[var(--text-soft)]">geen pick</span>
+                    <span className="text-emerald-600">geen pick</span>
                   )}
                 </td>
-                <td className="px-3 py-2 text-right font-medium text-[var(--text-strong)]">{pts === null ? "–" : pts}</td>
+                <td className="px-3 py-2 text-right font-medium text-emerald-50">{pts === null ? "–" : pts}</td>
               </tr>
             ))}
             <tr className="border-t border-[var(--highlight-soft)] bg-[var(--bg-panel)]/40">
-              <td className="px-3 py-2 text-[var(--text-strong)]">Rooting team ({player.rooting_team})</td>
-              <td className="px-3 py-2 text-[var(--text-soft)]">{rooting ? ROOTING_LABELS[rooting.outcome] : "nog niet bekend"}</td>
+              <td className="px-3 py-2 text-emerald-200">Rooting team ({player.rooting_team})</td>
+              <td className="px-3 py-2 text-emerald-300">{rooting ? ROOTING_LABELS[rooting.outcome] : "nog niet bekend"}</td>
               <td className="px-3 py-2"></td>
-              <td className="px-3 py-2 text-right font-medium text-[var(--text-strong)]">
+              <td className="px-3 py-2 text-right font-medium text-emerald-50">
                 {rootingPts === null ? "–" : rootingPts > 0 ? `+${rootingPts}` : rootingPts}
               </td>
             </tr>
@@ -1369,7 +1305,7 @@ function StandTab({ players, weeks, games, picks, rootingResults }) {
     <div>
       <div className="border border-[var(--highlight-soft)] rounded-md overflow-x-auto">
         <table className="w-full text-sm min-w-[420px]">
-          <thead className="bg-[var(--bg-panel)]/90 text-[var(--text-soft)] text-xs uppercase tracking-wide">
+          <thead className="bg-[var(--bg-panel)]/90 text-emerald-400 text-xs uppercase tracking-wide">
             <tr>
               <th className="text-left px-3 py-2">#</th>
               <th className="text-left px-3 py-2">Speler</th>
@@ -1380,13 +1316,13 @@ function StandTab({ players, weeks, games, picks, rootingResults }) {
           <tbody>
             {rows.map((r, i) => (
               <tr key={r.player.id} className="border-t border-[var(--highlight-soft)]">
-                <td className="px-3 py-2 text-[var(--text-soft)]">{i + 1}</td>
+                <td className="px-3 py-2 text-emerald-400">{i + 1}</td>
                 <td className="px-3 py-2 flex items-center gap-1.5">
                   {i === 0 && <Trophy size={14} className="text-[var(--accent)]" />}
                   {r.player.name}
                 </td>
-                <td className="px-3 py-2 text-[var(--text-soft)]">{r.player.rooting_team}</td>
-                <td className="px-3 py-2 text-right font-semibold text-[var(--text-strong)]">{r.total}</td>
+                <td className="px-3 py-2 text-emerald-300">{r.player.rooting_team}</td>
+                <td className="px-3 py-2 text-right font-semibold text-emerald-50">{r.total}</td>
               </tr>
             ))}
           </tbody>
@@ -1394,19 +1330,19 @@ function StandTab({ players, weeks, games, picks, rootingResults }) {
       </div>
 
       {rows.length >= 2 && (
-        <div className="mt-4 grid sm:grid-cols-3 gap-3 text-xs text-[var(--text-soft)]">
+        <div className="mt-4 grid sm:grid-cols-3 gap-3 text-xs text-emerald-300">
           <div className="border border-[var(--highlight-soft)] rounded p-3 flex items-center gap-2">
             <Trophy size={16} className="text-[var(--accent)]" />
-            <span><span className="text-[var(--text-strong)] font-medium">{rows[0].player.name}</span> is voorlopig "King of the NFL".</span>
+            <span><span className="text-emerald-100 font-medium">{rows[0].player.name}</span> is voorlopig "King of the NFL".</span>
           </div>
           <div className="border border-[var(--highlight-soft)] rounded p-3 flex items-center gap-2">
             <Beer size={16} className="text-[var(--accent)]" />
-            <span><span className="text-[var(--text-strong)] font-medium">{rows[1].player.name}</span> voorziet voorlopig de drank.</span>
+            <span><span className="text-emerald-100 font-medium">{rows[1].player.name}</span> voorziet voorlopig de drank.</span>
           </div>
           <div className="border border-[var(--highlight-soft)] rounded p-3 flex items-center gap-2">
             <UtensilsCrossed size={16} className="text-[var(--accent)]" />
             <span>
-              <span className="text-[var(--text-strong)] font-medium">{rows[rows.length - (rows.length >= 3 ? 2 : 1)].player.name}</span>{" "}
+              <span className="text-emerald-100 font-medium">{rows[rows.length - (rows.length >= 3 ? 2 : 1)].player.name}</span>{" "}
               {rows.length >= 3 ? "verzorgt voorlopig het vlees" : "organiseert voorlopig de BBQ"}.
             </span>
           </div>
@@ -1422,7 +1358,7 @@ function StandTab({ players, weeks, games, picks, rootingResults }) {
 
 function ReglementTab() {
   return (
-    <div className="space-y-4 text-sm text-[var(--text-strong)] leading-relaxed">
+    <div className="space-y-4 text-sm text-emerald-200 leading-relaxed">
       <Section title="Puntentelling per wedstrijd">
         <ul className="list-disc pl-5 space-y-1">
           <li>Winst met 10 punten verschil of meer: 4 punten</li>
@@ -1518,15 +1454,15 @@ function BeheerTab({ weeks, games, players, picks, activeWeek, rootingTeams, roo
         <h3 className="text-[var(--accent)] font-semibold mb-1">
           Double point games — {currentPeriod.label}
         </h3>
-        <p className="text-xs text-[var(--text-soft)] mb-3">
+        <p className="text-xs text-emerald-400 mb-3">
           Wie z'n DPG al ingezet heeft in de lopende periode (op basis van week {activeWeek}).
         </p>
         {players.length === 0 ? (
-          <p className="text-sm text-[var(--text-strong)]0">Nog geen spelers aangemeld.</p>
+          <p className="text-sm text-emerald-500">Nog geen spelers aangemeld.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="text-[var(--text-soft)] text-xs uppercase tracking-wide">
+              <thead className="text-emerald-400 text-xs uppercase tracking-wide">
                 <tr>
                   <th className="text-left py-1.5 pr-3">Speler</th>
                   <th className="text-left py-1.5 pr-3">Status</th>
@@ -1536,17 +1472,17 @@ function BeheerTab({ weeks, games, players, picks, activeWeek, rootingTeams, roo
               <tbody>
                 {dpgOverview.map(({ player, pick, game }) => (
                   <tr key={player.id} className="border-t border-[var(--highlight-soft)]/60">
-                    <td className="py-1.5 pr-3 text-[var(--text-strong)]">{player.name}</td>
+                    <td className="py-1.5 pr-3 text-emerald-100">{player.name}</td>
                     <td className="py-1.5 pr-3">
                       {pick ? (
                         <span className="inline-flex items-center gap-1 text-[var(--accent)]">
                           <Flame size={12} /> ingezet (week {pick.week_num})
                         </span>
                       ) : (
-                        <span className="text-[var(--text-strong)]0">nog niet ingezet</span>
+                        <span className="text-emerald-500">nog niet ingezet</span>
                       )}
                     </td>
-                    <td className="py-1.5 text-[var(--text-soft)]">
+                    <td className="py-1.5 text-emerald-300">
                       {game ? `${game.away_team} @ ${game.home_team}` : "–"}
                     </td>
                   </tr>
@@ -1561,28 +1497,28 @@ function BeheerTab({ weeks, games, players, picks, activeWeek, rootingTeams, roo
         <h3 className="text-[var(--accent)] font-semibold mb-3">Week handmatig toevoegen</h3>
         <div className="grid grid-cols-2 gap-3 mb-3">
           <div>
-            <label className="text-xs text-[var(--text-soft)]">Weeknummer</label>
-            <input type="number" value={newWeekNum} onChange={(e) => setNewWeekNum(e.target.value)} className="w-full mt-1 bg-[var(--accent-border)] text-[var(--accent-text)] border border-[var(--highlight)]/60 rounded px-3 py-2 text-sm" />
+            <label className="text-xs text-emerald-400">Weeknummer</label>
+            <input type="number" value={newWeekNum} onChange={(e) => setNewWeekNum(e.target.value)} className="w-full mt-1 bg-emerald-950 border border-[var(--highlight)]/60 rounded px-3 py-2 text-sm" />
           </div>
           <div>
-            <label className="text-xs text-[var(--text-soft)]">Deadline (1e kickoff)</label>
-            <input type="datetime-local" value={deadline} onChange={(e) => setDeadline(e.target.value)} className="w-full mt-1 bg-[var(--accent-border)] text-[var(--accent-text)] border border-[var(--highlight)]/60 rounded px-3 py-2 text-sm" />
+            <label className="text-xs text-emerald-400">Deadline (1e kickoff)</label>
+            <input type="datetime-local" value={deadline} onChange={(e) => setDeadline(e.target.value)} className="w-full mt-1 bg-emerald-950 border border-[var(--highlight)]/60 rounded px-3 py-2 text-sm" />
           </div>
         </div>
         <div className="space-y-2">
           {draftGames.map((g, idx) => (
             <div key={idx} className="flex flex-wrap gap-2 items-center">
-              <select value={g.away} onChange={(e) => updateDraftGame(idx, "away", e.target.value)} className="flex-1 min-w-[140px] bg-[var(--accent-border)] text-[var(--accent-text)] border border-[var(--highlight)]/60 rounded px-2 py-1.5 text-xs">
+              <select value={g.away} onChange={(e) => updateDraftGame(idx, "away", e.target.value)} className="flex-1 min-w-[140px] bg-emerald-950 border border-[var(--highlight)]/60 rounded px-2 py-1.5 text-xs">
                 <option value="">Uitploeg…</option>
                 {TEAMS.map((t) => <option key={t}>{t}</option>)}
               </select>
-              <span className="text-[var(--text-strong)]0 text-xs">@</span>
-              <select value={g.home} onChange={(e) => updateDraftGame(idx, "home", e.target.value)} className="flex-1 min-w-[140px] bg-[var(--accent-border)] text-[var(--accent-text)] border border-[var(--highlight)]/60 rounded px-2 py-1.5 text-xs">
+              <span className="text-emerald-500 text-xs">@</span>
+              <select value={g.home} onChange={(e) => updateDraftGame(idx, "home", e.target.value)} className="flex-1 min-w-[140px] bg-emerald-950 border border-[var(--highlight)]/60 rounded px-2 py-1.5 text-xs">
                 <option value="">Thuisploeg…</option>
                 {TEAMS.map((t) => <option key={t}>{t}</option>)}
               </select>
-              <input placeholder="Bv. Cowboys -2.5" value={g.spread} onChange={(e) => updateDraftGame(idx, "spread", e.target.value)} className="w-28 bg-[var(--accent-border)] text-[var(--accent-text)] border border-[var(--highlight)]/60 rounded px-2 py-1.5 text-xs" />
-              <button onClick={() => removeDraftGame(idx)} className="text-[var(--text-strong)]0 hover:text-red-400">
+              <input placeholder="Bv. Cowboys -2.5" value={g.spread} onChange={(e) => updateDraftGame(idx, "spread", e.target.value)} className="w-28 bg-emerald-950 border border-[var(--highlight)]/60 rounded px-2 py-1.5 text-xs" />
+              <button onClick={() => removeDraftGame(idx)} className="text-emerald-500 hover:text-red-400">
                 <Trash2 size={14} />
               </button>
             </div>
@@ -1607,7 +1543,7 @@ function BeheerTab({ weeks, games, players, picks, activeWeek, rootingTeams, roo
 
           {rootingTeams.length > 0 && (
             <>
-              <h4 className="text-[var(--text-soft)] text-xs uppercase tracking-wide mt-4 mb-2">Rooting team-uitslagen</h4>
+              <h4 className="text-emerald-400 text-xs uppercase tracking-wide mt-4 mb-2">Rooting team-uitslagen</h4>
               <div className="space-y-1.5">
                 {rootingTeams.map((team) => {
                   const current = rootingResults.find((r) => r.week_num === wk.week_num && r.team === team);
@@ -1617,7 +1553,7 @@ function BeheerTab({ weeks, games, players, picks, activeWeek, rootingTeams, roo
                       <select
                         value={current?.outcome || ""}
                         onChange={(e) => onSaveRooting(wk.week_num, team, e.target.value)}
-                        className="bg-[var(--accent-border)] text-[var(--accent-text)] border border-[var(--highlight)]/60 rounded px-2 py-1 text-xs"
+                        className="bg-emerald-950 border border-[var(--highlight)]/60 rounded px-2 py-1 text-xs"
                       >
                         <option value="">– (nog niet bekend)</option>
                         <option value="win">Gewonnen (+1)</option>
@@ -1636,17 +1572,17 @@ function BeheerTab({ weeks, games, players, picks, activeWeek, rootingTeams, roo
 
       <div className="border border-[var(--highlight-soft)] rounded-md p-4 bg-[var(--bg-panel)]/60">
         <h3 className="text-[var(--accent)] font-semibold mb-3">Spelers</h3>
-        {players.length === 0 && <p className="text-sm text-[var(--text-soft)]">Nog niemand aangemeld.</p>}
+        {players.length === 0 && <p className="text-sm text-emerald-400">Nog niemand aangemeld.</p>}
         <div className="space-y-1.5">
           {players.map((p) => (
             <div key={p.id} className="flex items-center justify-between text-sm">
               <span>
                 {p.name}{" "}
-                <span className="text-[var(--text-soft)] text-xs">
+                <span className="text-emerald-400 text-xs">
                   (championship: {p.championship_team}, rooting: {p.rooting_team})
                 </span>
               </span>
-              <button onClick={() => onRemovePlayer(p.id)} className="text-[var(--text-strong)]0 hover:text-red-400">
+              <button onClick={() => onRemovePlayer(p.id)} className="text-emerald-500 hover:text-red-400">
                 <Trash2 size={14} />
               </button>
             </div>
@@ -1664,9 +1600,9 @@ function ResultRow({ game, onSave }) {
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm">
       <span className="flex-1 min-w-[120px] truncate">{game.away_team} @ {game.home_team}</span>
-      <input type="number" value={away} onChange={(e) => setAway(e.target.value)} placeholder="Uit" className="w-16 bg-[var(--accent-border)] text-[var(--accent-text)] border border-[var(--highlight)]/60 rounded px-2 py-1 text-xs" />
-      <span className="text-[var(--text-strong)]0">–</span>
-      <input type="number" value={home} onChange={(e) => setHome(e.target.value)} placeholder="Thuis" className="w-16 bg-[var(--accent-border)] text-[var(--accent-text)] border border-[var(--highlight)]/60 rounded px-2 py-1 text-xs" />
+      <input type="number" value={away} onChange={(e) => setAway(e.target.value)} placeholder="Uit" className="w-16 bg-emerald-950 border border-[var(--highlight)]/60 rounded px-2 py-1 text-xs" />
+      <span className="text-emerald-500">–</span>
+      <input type="number" value={home} onChange={(e) => setHome(e.target.value)} placeholder="Thuis" className="w-16 bg-emerald-950 border border-[var(--highlight)]/60 rounded px-2 py-1 text-xs" />
       <button
         onClick={() => onSave(game.id, home, away)}
         disabled={home === "" || away === ""}
@@ -1686,7 +1622,7 @@ function EmptyState({ title, body }) {
   return (
     <div className="border border-dashed border-[var(--highlight)]/60 rounded-md p-8 text-center">
       <h3 className="text-[var(--accent)] font-semibold mb-1">{title}</h3>
-      <p className="text-sm text-[var(--text-soft)]">{body}</p>
+      <p className="text-sm text-emerald-300">{body}</p>
     </div>
   );
 }
