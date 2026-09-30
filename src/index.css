@@ -2,18 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Standaard accentkleur (amber) — wordt via JS overschreven zodra het
-   rooting team van de ingelogde speler gekend is (zie App.jsx). */
+/* Standaard kleurenschema (amber) — wordt via JS overschreven zodra het
+   rooting team van de ingelogde speler gekend is (zie accentVarsForTeam in
+   App.jsx). Zelfde opzet als de team-thema's: de felle kleur is de
+   achtergrond, de donkere "inkt"-kleur is de tekst- en knoppenkleur. */
 :root {
   --accent: #fbbf24;
-  --accent-hover: #fcd34d;
-  --accent-border: #b45309;
+  --accent-hover: #fccc50;
+  --accent-border: #bc8f1b;
   --accent-soft: rgba(251, 191, 36, 0.15);
-  --accent-text: #022c22;
-  --bg-dark: #022c22;
-  --bg-panel: #022c22;
-  --highlight: #047857;
-  --highlight-soft: rgba(4, 120, 87, 0.45);
+  --accent-text: #0c0a09;
+  --bg-dark: #423a36;
+  --bg-panel: #554c45;
+  --text-strong: #efedec;
+  --text-soft: #c2bab5;
+  --highlight: #b45309;
+  --highlight-soft: rgba(180, 83, 9, 0.4);
 }
 
 body {
