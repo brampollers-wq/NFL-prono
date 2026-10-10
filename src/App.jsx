@@ -349,8 +349,19 @@ const APP_ACCESS_CODE = "NFL2026";
 // voor alle spelers op die wedstrijd. Het reglement laat max 2 double point
 // games per week toe (over alle spelers samen), dus meer dan x4 kan sowieso
 // niet voorkomen.
-function doubleCountForGame(allPicks, gameId) {
+//
+// Daarnaast kan een wedstrijd een AUTOMATISCHE double point game zijn
+// (games.auto_double, bv. de Londense wedstrijd Eagles-Jaguars in week 5):
+// die telt altijd als 1 extra verdubbeling voor iedereen, los van wat spelers
+// zelf inzetten. Zet een speler daar ook nog zijn eigen DPG op, dan stapelt
+// dat (x2 automatisch + x2 speler = x4). Die automatische DPG telt niet mee
+// voor de limiet van 2 spelers-DPG's per week.
+function playerDoubleCount(allPicks, gameId) {
   return allPicks.filter((p) => p.game_id === gameId && p.is_double).length;
+}
+
+function doubleCountForGame(allPicks, game) {
+  return playerDoubleCount(allPicks, game.id) + (game.auto_double ? 1 : 0);
 }
 
 function computeGamePoints(pickedTeam, game, doubleCount = 0) {
@@ -937,6 +948,14 @@ function PicksTab({ week, weekGames, weekNum, players, me, picks, savePicks, onR
             <div className="flex items-center justify-between mb-1">
               <span className="text-sm text-[var(--text-strong)] font-medium">
                 Wedstrijd {idx + 1}: {g.away_team} @ {g.home_team}
+                {g.auto_double && (
+                  <span
+                    className="ml-2 inline-flex items-center gap-0.5 text-xs text-[var(--accent)] align-middle"
+                    title="Automatische double point game: deze wedstrijd telt voor iedereen dubbel"
+                  >
+                    <Flame size={12} /> automatisch 2x
+                  </span>
+                )}
               </span>
               {g.commence_time && (
                 <span className="text-xs text-[var(--text-soft)]">{fmtKickoff(g.commence_time)}</span>
@@ -1175,6 +1194,7 @@ function OverzichtTab({ week, weekGames, weekNum, players, picks }) {
             <tr key={g.id} className="border-t border-[var(--highlight-soft)]">
               <td className="px-3 py-2 text-[var(--text-soft)] whitespace-nowrap">
                 {idx + 1}. {g.away_team.split(" ").slice(-1)} @ {g.home_team.split(" ").slice(-1)}
+                {g.auto_double && <Flame size={12} className="inline ml-1 text-[var(--accent)]" title="Automatische double point game" />}
               </td>
               <td className="px-3 py-2 text-[var(--text-soft)] text-xs whitespace-nowrap">
                 {fmtKickoff(g.commence_time) || "–"}
@@ -1237,7 +1257,7 @@ function PuntenTab({ week, weekGames, weekNum, players, me, picks, rootingResult
   const rows = weekGames.map((g, idx) => {
     const pick = playerPicks.find((p) => p.game_id === g.id);
     const pts = pick
-      ? computeGamePoints(pick.picked_team, g, doubleCountForGame(picks, g.id))
+      ? computeGamePoints(pick.picked_team, g, doubleCountForGame(picks, g))
       : null;
     if (pts !== null) total += pts;
     return { idx, game: g, pick, pts };
@@ -1297,17 +1317,19 @@ function PuntenTab({ week, weekGames, weekNum, players, me, picks, rootingResult
                       {/* Vóór de deadline mag enkel je eigen DPG-keuze zichtbaar zijn —
                           nooit of een ANDERE speler deze wedstrijd al dubbel zette,
                           want dat verklapt info over nog niet-vrijgegeven picks. */}
-                      {(pick.is_double || (locked && doubleCountForGame(picks, game.id) > 0)) && (
+                      {(pick.is_double || game.auto_double || (locked && doubleCountForGame(picks, game) > 0)) && (
                         <span
                           className="flex items-center gap-0.5 text-[var(--accent)]"
                           title={
-                            pick.is_double
+                            game.auto_double
+                              ? "Deze wedstrijd is een automatische double point game voor iedereen"
+                              : pick.is_double
                               ? "Jij hebt hier je eigen double point game op gezet"
                               : "Een andere speler zette hier zijn double point game op — deze wedstrijd telt daardoor ook voor jou dubbel"
                           }
                         >
                           <Flame size={12} />
-                          x{locked ? Math.pow(2, doubleCountForGame(picks, game.id)) : 2}
+                          x{Math.pow(2, locked ? doubleCountForGame(picks, game) : (game.auto_double ? 1 : 0) + (pick.is_double ? 1 : 0))}
                         </span>
                       )}
                     </span>
@@ -1353,7 +1375,7 @@ function StandTab({ players, weeks, games, picks, rootingResults }) {
         const pts = computeGamePoints(
           pick.picked_team,
           game,
-          doubleCountForGame(picks, game.id)
+          doubleCountForGame(picks, game)
         );
         if (pts !== null) total += pts;
       }
