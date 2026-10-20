@@ -1361,47 +1361,74 @@ function OverzichtTab({ week, weekGames, weekNum, players, picks }) {
     );
   }
 
+  const abbr = (team) => TEAM_ABBR[team] || team.slice(0, 3).toUpperCase();
+
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm border border-[var(--highlight-soft)] rounded-md overflow-hidden">
-        <thead className="bg-[var(--bg-panel)]/90 text-[var(--text-soft)] text-xs uppercase tracking-wide">
-          <tr>
-            <th className="text-left px-3 py-2">Wedstrijd</th>
-            <th className="text-left px-3 py-2">Datum/uur</th>
-            {players.map((p) => (
-              <th key={p.id} className="text-left px-3 py-2">{p.name}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {weekGames.map((g, idx) => (
-            <tr key={g.id} className="border-t border-[var(--highlight-soft)]">
-              <td className="px-3 py-2 text-[var(--text-soft)] whitespace-nowrap">
-                {idx + 1}. {g.away_team.split(" ").slice(-1)} @ {g.home_team.split(" ").slice(-1)}
-                {g.auto_double && <Flame size={12} className="inline ml-1 text-[var(--accent)]" title="Automatische double point game" />}
-              </td>
-              <td className="px-3 py-2 text-[var(--text-soft)] text-xs whitespace-nowrap">
-                {fmtKickoff(g.commence_time) || "–"}
-              </td>
-              {players.map((p) => {
-                const pick = weekPicks.find((x) => x.player_id === p.id && x.game_id === g.id);
-                return (
-                  <td key={p.id} className="px-3 py-2">
-                    {pick ? (
-                      <span className="flex items-center gap-1">
-                        {pick.picked_team.split(" ").slice(-1)}
-                        {pick.is_double && <Flame size={12} className="text-[var(--accent)]" />}
-                      </span>
-                    ) : (
-                      <span className="text-[var(--text-soft)]">–</span>
-                    )}
-                  </td>
-                );
-              })}
+    <div className="space-y-4">
+      {/* Matrix: spelers onder elkaar, wedstrijden als kolommen — past op een smalle telefoon */}
+      <div className="border border-[var(--highlight-soft)] rounded-xl overflow-hidden">
+        <table className="w-full table-fixed text-sm">
+          <thead className="bg-[var(--bg-panel)]/90 text-[var(--text-soft)]">
+            <tr>
+              <th className="text-left px-2 py-2 w-[22%] text-xs uppercase tracking-wide font-semibold">Speler</th>
+              {weekGames.map((g, idx) => (
+                <th key={g.id} className="px-0.5 py-2 text-center font-medium leading-tight">
+                  <div className="text-[10px] text-[var(--text-soft)]">{idx + 1}</div>
+                  <div className="text-[10px] font-semibold text-[var(--text-strong)]">{abbr(g.away_team)}</div>
+                  <div className="text-[9px] text-[var(--text-soft)]">@</div>
+                  <div className="text-[10px] font-semibold text-[var(--text-strong)]">{abbr(g.home_team)}</div>
+                  {g.auto_double && <Flame size={10} className="inline text-[var(--accent)]" />}
+                </th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {players.map((p) => (
+              <tr key={p.id} className="border-t border-[var(--highlight-soft)]">
+                <td className="px-2 py-2 text-[var(--text-strong)] font-medium truncate">{p.name}</td>
+                {weekGames.map((g) => {
+                  const pick = weekPicks.find((x) => x.player_id === p.id && x.game_id === g.id);
+                  if (!pick) {
+                    return (
+                      <td key={g.id} className="px-0.5 py-2 text-center text-[var(--text-soft)]">–</td>
+                    );
+                  }
+                  const bg = TEAM_COLORS[pick.picked_team] || "#6b7280";
+                  return (
+                    <td key={g.id} className="px-0.5 py-1.5 text-center">
+                      <span
+                        style={{ backgroundColor: bg, color: contrastText(bg) }}
+                        className="relative inline-block rounded-md px-1 py-1 text-[11px] font-bold leading-none min-w-[34px]"
+                      >
+                        {abbr(pick.picked_team)}
+                        {pick.is_double && (
+                          <Flame size={11} className="absolute -top-1.5 -right-1 text-[var(--accent)] fill-[var(--accent)]" />
+                        )}
+                      </span>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Legende: nummer -> wedstrijd + aftrap */}
+      <div className="border border-[var(--highlight-soft)] rounded-xl divide-y divide-[var(--highlight-soft)] text-xs">
+        {weekGames.map((g, idx) => (
+          <div key={g.id} className="flex items-center justify-between gap-2 px-3 py-2">
+            <span className="text-[var(--text-strong)]">
+              <span className="text-[var(--text-soft)]">{idx + 1}.</span> {splitTeamName(g.away_team).nick} @ {splitTeamName(g.home_team).nick}
+              {g.auto_double && <Flame size={11} className="inline ml-1 text-[var(--accent)]" />}
+            </span>
+            <span className="text-[var(--text-soft)] whitespace-nowrap">{fmtKickoff(g.commence_time) || "–"}</span>
+          </div>
+        ))}
+      </div>
+      <div className="text-[11px] text-[var(--text-soft)] flex items-center gap-1">
+        <Flame size={11} className="text-[var(--accent)]" /> = double point game
+      </div>
     </div>
   );
 }
@@ -1475,69 +1502,68 @@ function PuntenTab({ week, weekGames, weekNum, players, me, picks, rootingResult
         </select>
       )}
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm border border-[var(--highlight-soft)] rounded-md overflow-hidden min-w-[480px]">
-          <thead className="bg-[var(--bg-panel)]/90 text-[var(--text-soft)] text-xs uppercase tracking-wide">
-            <tr>
-              <th className="text-left px-3 py-2">Wedstrijd</th>
-              <th className="text-left px-3 py-2">Uitslag</th>
-              <th className="text-left px-3 py-2">Pick</th>
-              <th className="text-right px-3 py-2">Punten</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map(({ idx, game, pick, pts }) => (
-              <tr key={game.id} className="border-t border-[var(--highlight-soft)]">
-                <td className="px-3 py-2 text-[var(--text-strong)]">
-                  Wedstrijd {idx + 1}: {game.away_team} @ {game.home_team}
-                </td>
-                <td className="px-3 py-2 text-[var(--text-soft)]">
-                  {game.status === "final" ? `${game.away_score} – ${game.home_score}` : "nog te spelen"}
-                </td>
-                <td className="px-3 py-2">
+      <div className="border border-[var(--highlight-soft)] rounded-xl overflow-hidden divide-y divide-[var(--highlight-soft)]">
+        {rows.map(({ idx, game, pick, pts }) => {
+          const mult = pick && (pick.is_double || game.auto_double || (locked && doubleCountForGame(picks, game) > 0))
+            ? Math.pow(2, locked ? doubleCountForGame(picks, game) : (game.auto_double ? 1 : 0) + (pick.is_double ? 1 : 0))
+            : null;
+          return (
+            <div key={game.id} className="flex items-center gap-3 px-3 py-2.5">
+              <div className="min-w-0 flex-1">
+                <div className="text-xs text-[var(--text-soft)] truncate">
+                  {idx + 1}. {splitTeamName(game.away_team).nick} @ {splitTeamName(game.home_team).nick}
+                  {" · "}
+                  {game.status === "final" ? `${game.away_score}–${game.home_score}` : "nog te spelen"}
+                </div>
+                <div className="mt-1 flex items-center gap-1.5 text-sm text-[var(--text-strong)]">
                   {pick ? (
-                    <span className="flex items-center gap-1">
-                      {pick.picked_team}
+                    <>
+                      <TeamBadge team={pick.picked_team} size={22} />
+                      <span className="truncate">{splitTeamName(pick.picked_team).nick}</span>
                       {/* Vóór de deadline mag enkel je eigen DPG-keuze zichtbaar zijn —
                           nooit of een ANDERE speler deze wedstrijd al dubbel zette,
                           want dat verklapt info over nog niet-vrijgegeven picks. */}
-                      {(pick.is_double || game.auto_double || (locked && doubleCountForGame(picks, game) > 0)) && (
+                      {mult && (
                         <span
-                          className="flex items-center gap-0.5 text-[var(--accent)]"
+                          className="flex items-center gap-0.5 text-xs text-[var(--accent)] shrink-0"
                           title={
                             game.auto_double
-                              ? "Deze wedstrijd is een automatische double point game voor iedereen"
+                              ? "Automatische double point game voor iedereen"
                               : pick.is_double
-                              ? "Jij hebt hier je eigen double point game op gezet"
-                              : "Een andere speler zette hier zijn double point game op — deze wedstrijd telt daardoor ook voor jou dubbel"
+                              ? "Jij zette hier je eigen double point game op"
+                              : "Een andere speler zette hier zijn double point game op — deze wedstrijd telt ook voor jou dubbel"
                           }
                         >
-                          <Flame size={12} />
-                          x{Math.pow(2, locked ? doubleCountForGame(picks, game) : (game.auto_double ? 1 : 0) + (pick.is_double ? 1 : 0))}
+                          <Flame size={12} />x{mult}
                         </span>
                       )}
-                    </span>
+                    </>
                   ) : (
                     <span className="text-[var(--text-soft)]">geen pick</span>
                   )}
-                </td>
-                <td className="px-3 py-2 text-right font-medium text-[var(--text-strong)]">{pts === null ? "–" : pts}</td>
-              </tr>
-            ))}
-            <tr className="border-t border-[var(--highlight-soft)] bg-[var(--bg-panel)]/40">
-              <td className="px-3 py-2 text-[var(--text-strong)]">Rooting team ({player.rooting_team})</td>
-              <td className="px-3 py-2 text-[var(--text-soft)]">{rooting ? ROOTING_LABELS[rooting.outcome] : "nog niet bekend"}</td>
-              <td className="px-3 py-2"></td>
-              <td className="px-3 py-2 text-right font-medium text-[var(--text-strong)]">
-                {rootingPts === null ? "–" : rootingPts > 0 ? `+${rootingPts}` : rootingPts}
-              </td>
-            </tr>
-            <tr className="border-t border-[var(--highlight)]/60">
-              <td colSpan={3} className="px-3 py-2 font-semibold text-[var(--accent)]">Totaal deze week</td>
-              <td className="px-3 py-2 text-right font-bold text-[var(--accent)]">{total}</td>
-            </tr>
-          </tbody>
-        </table>
+                </div>
+              </div>
+              <div className="text-lg font-bold text-[var(--text-strong)] w-8 text-right">{pts === null ? "–" : pts}</div>
+            </div>
+          );
+        })}
+        <div className="flex items-center gap-3 px-3 py-2.5 bg-[var(--bg-panel)]/40">
+          <div className="min-w-0 flex-1">
+            <div className="text-xs text-[var(--text-soft)]">Rooting team</div>
+            <div className="mt-1 flex items-center gap-1.5 text-sm text-[var(--text-strong)]">
+              <TeamBadge team={player.rooting_team} size={22} />
+              <span className="truncate">{splitTeamName(player.rooting_team).nick}</span>
+              <span className="text-xs text-[var(--text-soft)]">· {rooting ? ROOTING_LABELS[rooting.outcome] : "nog niet bekend"}</span>
+            </div>
+          </div>
+          <div className="text-lg font-bold text-[var(--text-strong)] w-8 text-right">
+            {rootingPts === null ? "–" : rootingPts > 0 ? `+${rootingPts}` : rootingPts}
+          </div>
+        </div>
+        <div className="flex items-center justify-between px-3 py-3">
+          <span className="font-semibold text-[var(--accent)]">Totaal deze week</span>
+          <span className="text-xl font-bold text-[var(--accent)]">{total}</span>
+        </div>
       </div>
     </div>
   );
@@ -1574,44 +1600,35 @@ function StandTab({ players, weeks, games, picks, rootingResults }) {
 
   return (
     <div>
-      <div className="border border-[var(--highlight-soft)] rounded-md overflow-x-auto">
-        <table className="w-full text-sm min-w-[420px]">
-          <thead className="bg-[var(--bg-panel)]/90 text-[var(--text-soft)] text-xs uppercase tracking-wide">
-            <tr>
-              <th className="text-left px-3 py-2">#</th>
-              <th className="text-left px-3 py-2">Speler</th>
-              <th className="text-left px-3 py-2">Rooting team</th>
-              <th className="text-right px-3 py-2">Punten</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r, i) => (
-              <tr key={r.player.id} className="border-t border-[var(--highlight-soft)]">
-                <td className="px-3 py-2 text-[var(--text-soft)]">{i + 1}</td>
-                <td className="px-3 py-2 flex items-center gap-1.5">
-                  {i === 0 && <Trophy size={14} className="text-[var(--accent)]" />}
-                  {r.player.name}
-                </td>
-                <td className="px-3 py-2 text-[var(--text-soft)]">{r.player.rooting_team}</td>
-                <td className="px-3 py-2 text-right font-semibold text-[var(--text-strong)]">{r.total}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="border border-[var(--highlight-soft)] rounded-xl overflow-hidden divide-y divide-[var(--highlight-soft)]">
+        {rows.map((r, i) => (
+          <div key={r.player.id} className="flex items-center gap-3 px-3 py-2.5">
+            <span className="w-5 text-sm text-[var(--text-soft)]">{i + 1}</span>
+            <TeamBadge team={r.player.rooting_team} size={30} />
+            <div className="min-w-0 flex-1 leading-tight">
+              <div className="flex items-center gap-1.5 text-[var(--text-strong)] font-medium truncate">
+                {i === 0 && <Trophy size={14} className="text-[var(--accent)] shrink-0" />}
+                {r.player.name}
+              </div>
+              <div className="text-xs text-[var(--text-soft)] truncate">{r.player.rooting_team}</div>
+            </div>
+            <span className="text-lg font-bold text-[var(--text-strong)]">{r.total}</span>
+          </div>
+        ))}
       </div>
 
       {rows.length >= 2 && (
-        <div className="mt-4 grid sm:grid-cols-3 gap-3 text-xs text-[var(--text-soft)]">
-          <div className="border border-[var(--highlight-soft)] rounded p-3 flex items-center gap-2">
-            <Trophy size={16} className="text-[var(--accent)]" />
+        <div className="mt-3 border border-[var(--highlight-soft)] rounded-xl divide-y divide-[var(--highlight-soft)] text-xs text-[var(--text-soft)]">
+          <div className="px-3 py-2 flex items-center gap-2">
+            <Trophy size={14} className="text-[var(--accent)] shrink-0" />
             <span><span className="text-[var(--text-strong)] font-medium">{rows[0].player.name}</span> is voorlopig "King of the NFL".</span>
           </div>
-          <div className="border border-[var(--highlight-soft)] rounded p-3 flex items-center gap-2">
-            <Beer size={16} className="text-[var(--accent)]" />
+          <div className="px-3 py-2 flex items-center gap-2">
+            <Beer size={14} className="text-[var(--accent)] shrink-0" />
             <span><span className="text-[var(--text-strong)] font-medium">{rows[1].player.name}</span> voorziet voorlopig de drank.</span>
           </div>
-          <div className="border border-[var(--highlight-soft)] rounded p-3 flex items-center gap-2">
-            <UtensilsCrossed size={16} className="text-[var(--accent)]" />
+          <div className="px-3 py-2 flex items-center gap-2">
+            <UtensilsCrossed size={14} className="text-[var(--accent)] shrink-0" />
             <span>
               <span className="text-[var(--text-strong)] font-medium">{rows[rows.length - (rows.length >= 3 ? 2 : 1)].player.name}</span>{" "}
               {rows.length >= 3 ? "verzorgt voorlopig het vlees" : "organiseert voorlopig de BBQ"}.
