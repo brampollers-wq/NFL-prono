@@ -37,3 +37,10 @@ body {
   font-family: "Inter", sans-serif;
   margin: 0;
 }
+
+/* Geïnstalleerd als app (PWA): houd inhoud weg van de notch/statusbalk en de
+   home-indicator op moderne telefoons. */
+#root {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}

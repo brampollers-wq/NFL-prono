@@ -19,6 +19,8 @@ import {
   Eye,
   EyeOff,
   ListChecks,
+  Clock,
+  MoreHorizontal,
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 
@@ -378,6 +380,72 @@ function computeGamePoints(pickedTeam, game, doubleCount = 0) {
   return pts * multiplier;
 }
 
+const TEAM_ABBR = {
+  "Arizona Cardinals": "ARI", "Atlanta Falcons": "ATL", "Baltimore Ravens": "BAL", "Buffalo Bills": "BUF",
+  "Carolina Panthers": "CAR", "Chicago Bears": "CHI", "Cincinnati Bengals": "CIN", "Cleveland Browns": "CLE",
+  "Dallas Cowboys": "DAL", "Denver Broncos": "DEN", "Detroit Lions": "DET", "Green Bay Packers": "GB",
+  "Houston Texans": "HOU", "Indianapolis Colts": "IND", "Jacksonville Jaguars": "JAX", "Kansas City Chiefs": "KC",
+  "Las Vegas Raiders": "LV", "Los Angeles Chargers": "LAC", "Los Angeles Rams": "LAR", "Miami Dolphins": "MIA",
+  "Minnesota Vikings": "MIN", "New England Patriots": "NE", "New Orleans Saints": "NO", "New York Giants": "NYG",
+  "New York Jets": "NYJ", "Philadelphia Eagles": "PHI", "Pittsburgh Steelers": "PIT", "San Francisco 49ers": "SF",
+  "Seattle Seahawks": "SEA", "Tampa Bay Buccaneers": "TB", "Tennessee Titans": "TEN", "Washington Commanders": "WAS",
+};
+
+// "Denver Broncos" -> { city: "Denver", nick: "Broncos" }
+function splitTeamName(team) {
+  const parts = team.split(" ");
+  return { city: parts.slice(0, -1).join(" "), nick: parts[parts.length - 1] };
+}
+
+// Ronde teamkleur-badge met de afkorting (bv. DEN) — geen officiële logo's,
+// maar wel meteen herkenbaar.
+function TeamBadge({ team, size = 40 }) {
+  const bg = TEAM_COLORS[team] || "#6b7280";
+  return (
+    <span
+      style={{ width: size, height: size, backgroundColor: bg, color: contrastText(bg) }}
+      className="shrink-0 rounded-full flex items-center justify-center text-[11px] font-bold tracking-tight ring-2 ring-white/25"
+    >
+      {TEAM_ABBR[team] || team.slice(0, 3).toUpperCase()}
+    </span>
+  );
+}
+
+// "nog 2d 3u" / "nog 4u 12m" / "nog 12m" — of null als de deadline voorbij is.
+function fmtCountdown(iso, nowMs) {
+  if (!iso) return null;
+  const diff = new Date(iso).getTime() - nowMs;
+  if (diff <= 0) return null;
+  const totalMin = Math.floor(diff / 60000);
+  const d = Math.floor(totalMin / 1440);
+  const h = Math.floor((totalMin % 1440) / 60);
+  const m = totalMin % 60;
+  if (d > 0) return `nog ${d}d ${h}u`;
+  if (h > 0) return `nog ${h}u ${m}m`;
+  return `nog ${Math.max(m, 1)}m`;
+}
+
+function DeadlineCountdown({ deadline }) {
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), 30000);
+    return () => clearInterval(id);
+  }, []);
+  const text = fmtCountdown(deadline, nowMs);
+  if (!text) return null;
+  const urgent = new Date(deadline).getTime() - nowMs < 3 * 60 * 60 * 1000;
+  return (
+    <span
+      className={
+        "inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full border " +
+        (urgent ? "border-red-400 text-red-400" : "border-[var(--accent-border)] text-[var(--accent)]")
+      }
+    >
+      <Clock size={12} /> {text}
+    </span>
+  );
+}
+
 function fmtDeadline(iso) {
   if (!iso) return "geen deadline ingesteld";
   return new Date(iso).toLocaleString("nl-BE", {
@@ -646,7 +714,7 @@ export default function App() {
         onLogout={logout}
       />
 
-      <nav className="max-w-3xl mx-auto flex gap-1 px-4 mt-4 border-b border-[var(--highlight-soft)] overflow-x-auto flex-nowrap">
+      <nav className="hidden sm:flex max-w-3xl mx-auto gap-1 px-4 mt-4 border-b border-[var(--highlight-soft)] overflow-x-auto flex-nowrap">
         <TabButton icon={<ClipboardList size={16} />} label="Picks" active={tab === "picks"} onClick={() => setTab("picks")} />
         <TabButton icon={<Eye size={16} />} label="Overzicht" active={tab === "overzicht"} onClick={() => setTab("overzicht")} />
         <TabButton icon={<ListChecks size={16} />} label="Punten" active={tab === "punten"} onClick={() => setTab("punten")} />
@@ -655,7 +723,7 @@ export default function App() {
         <TabButton icon={<Users size={16} />} label="Beheer" active={tab === "beheer"} onClick={() => setTab("beheer")} />
       </nav>
 
-      <main className="max-w-3xl mx-auto px-4 mt-6">
+      <main className="max-w-3xl mx-auto px-4 mt-6 pb-24 sm:pb-0">
         {error && (
           <div className="mb-4 flex items-center gap-2 bg-red-950 border border-red-800 text-red-200 text-sm px-3 py-2 rounded">
             <AlertCircle size={16} />
@@ -718,12 +786,14 @@ export default function App() {
         )}
       </main>
 
-      <div className="fixed bottom-4 right-4 flex items-center gap-1.5 text-xs text-[var(--text-soft)]">
+      <BottomNav tab={tab} setTab={setTab} />
+
+      <div className="hidden sm:flex fixed bottom-4 right-4 items-center gap-1.5 text-xs text-[var(--text-soft)]">
         <Wifi size={13} /> live verbonden
       </div>
 
       {toast && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-[var(--accent)] text-[var(--accent-text)] font-semibold text-sm px-4 py-2 rounded shadow-lg">
+        <div className="fixed bottom-24 sm:bottom-4 z-50 left-1/2 -translate-x-1/2 bg-[var(--accent)] text-[var(--accent-text)] font-semibold text-sm px-4 py-2 rounded shadow-lg">
           {toast}
         </div>
       )}
@@ -827,6 +897,58 @@ function Header({ weekNums, activeWeek, setActiveWeek, me, onLogout }) {
   );
 }
 
+/* Onderaan vastgezette navigatiebalk voor telefoons (op grotere schermen blijft
+   de gewone tabbalk bovenaan). Reglement en Beheer zitten onder "Meer". */
+function BottomNav({ tab, setTab }) {
+  const [moreOpen, setMoreOpen] = useState(false);
+  const items = [
+    { id: "picks", label: "Picks", icon: ClipboardList },
+    { id: "overzicht", label: "Overzicht", icon: Eye },
+    { id: "punten", label: "Punten", icon: ListChecks },
+    { id: "stand", label: "Stand", icon: Trophy },
+  ];
+  const moreActive = tab === "reglement" || tab === "beheer";
+
+  function go(id) {
+    setTab(id);
+    setMoreOpen(false);
+  }
+
+  const itemClass = (active) =>
+    "flex flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-medium transition-colors " +
+    (active ? "text-[var(--accent)]" : "text-[var(--text-soft)]");
+
+  return (
+    <>
+      {moreOpen && <div className="fixed inset-0 z-30 sm:hidden" onClick={() => setMoreOpen(false)} />}
+      {moreOpen && (
+        <div className="fixed z-40 sm:hidden right-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] rounded-xl border border-[var(--highlight)]/60 bg-[var(--bg-panel)] shadow-lg overflow-hidden">
+          <button onClick={() => go("reglement")} className="flex items-center gap-2 w-full px-4 py-3 text-sm text-[var(--text-strong)] text-left">
+            <Shield size={16} /> Reglement
+          </button>
+          <button onClick={() => go("beheer")} className="flex items-center gap-2 w-full px-4 py-3 text-sm text-[var(--text-strong)] text-left border-t border-[var(--highlight-soft)]">
+            <Users size={16} /> Beheer
+          </button>
+        </div>
+      )}
+      <nav className="fixed bottom-0 inset-x-0 z-40 sm:hidden border-t border-[var(--highlight-soft)] bg-[var(--bg-panel)] pb-[env(safe-area-inset-bottom)]">
+        <div className="grid grid-cols-5">
+          {items.map(({ id, label, icon: Icon }) => (
+            <button key={id} onClick={() => go(id)} className={itemClass(tab === id)}>
+              <Icon size={20} />
+              {label}
+            </button>
+          ))}
+          <button onClick={() => setMoreOpen((v) => !v)} className={itemClass(moreActive || moreOpen)}>
+            <MoreHorizontal size={20} />
+            Meer
+          </button>
+        </div>
+      </nav>
+    </>
+  );
+}
+
 function TabButton({ icon, label, active, onClick }) {
   return (
     <button
@@ -918,39 +1040,73 @@ function PicksTab({ week, weekGames, weekNum, players, me, picks, savePicks, onR
     savePicks(weekNum, gamePicks, doubleGameId);
   }
 
+  const savedPicksMap = {};
+  for (const p of myExistingPicks) savedPicksMap[p.game_id] = p.picked_team;
+  const savedDouble = myExistingPicks.find((p) => p.is_double)?.game_id ?? null;
+  const dirty =
+    weekGames.some((g) => (gamePicks[g.id] || null) !== (savedPicksMap[g.id] || null)) ||
+    (doubleGameId || null) !== savedDouble;
+  const pickedCount = weekGames.filter((g) => gamePicks[g.id]).length;
+  const remaining = weekGames.length - pickedCount;
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <div className="text-sm text-[var(--text-soft)] flex items-center gap-1.5">
           {locked ? <Lock size={14} /> : null}
-          Deadline: <span className="text-[var(--text-strong)]">{fmtDeadline(week.deadline)}</span>
+          Deadline: <span className="text-[var(--text-strong)] font-medium">{fmtDeadline(week.deadline)}</span>
         </div>
-        {period && (
-          <div className={"text-xs px-2 py-1 rounded border " + (periodUsedElsewhere ? "border-[var(--highlight-soft)] text-[var(--text-soft)]" : "border-[var(--accent-border)] text-[var(--accent)]")}>
-            Dubbele-puntenvenster: {PERIODS.find((p) => p.id === period).label}
-            {periodUsedElsewhere ? " (al gebruikt)" : ""}
-            {!periodUsedElsewhere && weeklyCapReached && !doubleGameId
-              ? " — max 2 DPG's deze week al bereikt door anderen"
-              : ""}
-          </div>
-        )}
+        {!locked && <DeadlineCountdown deadline={week.deadline} />}
       </div>
 
+      {period && (
+        <div className={"mb-4 text-xs px-3 py-2 rounded-lg border " + (periodUsedElsewhere ? "border-[var(--highlight-soft)] text-[var(--text-soft)]" : "border-[var(--accent-border)] text-[var(--accent)]")}>
+          Dubbele-puntenvenster: {PERIODS.find((p) => p.id === period).label}
+          {periodUsedElsewhere ? " (al gebruikt)" : ""}
+          {!periodUsedElsewhere && weeklyCapReached && !doubleGameId
+            ? " — max 2 DPG's deze week al bereikt door anderen"
+            : ""}
+        </div>
+      )}
+
       {locked && (
-        <div className="mb-4 text-sm bg-[var(--bg-panel)]/90 border border-[var(--highlight-soft)] rounded px-3 py-2 text-[var(--text-soft)]">
+        <div className="mb-4 text-sm bg-[var(--bg-panel)]/90 border border-[var(--highlight-soft)] rounded-lg px-3 py-2 text-[var(--text-soft)]">
           De deadline voor deze week is verstreken.
         </div>
       )}
 
-      <div className="space-y-3">
+      {!locked && (
+        <div className="mb-4">
+          <div className="flex items-center justify-between text-xs text-[var(--text-soft)] mb-1.5">
+            <span>
+              {pickedCount} van {weekGames.length} gekozen
+            </span>
+            <span>{allPicked ? (dirty ? "nog niet opgeslagen" : "opgeslagen") : `nog ${remaining} te kiezen`}</span>
+          </div>
+          <div className="h-2 rounded-full bg-[var(--highlight-soft)] overflow-hidden">
+            <div
+              className="h-full rounded-full bg-[var(--accent)] transition-all duration-300"
+              style={{ width: `${(pickedCount / weekGames.length) * 100}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-4">
         {weekGames.map((g, idx) => (
-          <div key={g.id} className="border border-[var(--highlight-soft)] rounded-md p-3 bg-[var(--bg-panel)]/60">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-sm text-[var(--text-strong)] font-medium">
-                Wedstrijd {idx + 1}: {g.away_team} @ {g.home_team}
+          <div
+            key={g.id}
+            className={
+              "rounded-xl border p-4 bg-[var(--bg-panel)]/60 " +
+              (gamePicks[g.id] ? "border-[var(--highlight)]/60" : "border-[var(--highlight-soft)]")
+            }
+          >
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs uppercase tracking-wide text-[var(--text-soft)] flex items-center gap-2">
+                Wedstrijd {idx + 1}
                 {g.auto_double && (
                   <span
-                    className="ml-2 inline-flex items-center gap-0.5 text-xs text-[var(--accent)] align-middle"
+                    className="inline-flex items-center gap-0.5 normal-case text-[var(--accent)] font-semibold"
                     title="Automatische double point game: deze wedstrijd telt voor iedereen dubbel"
                   >
                     <Flame size={12} /> automatisch 2x
@@ -961,7 +1117,37 @@ function PicksTab({ week, weekGames, weekNum, players, me, picks, savePicks, onR
                 <span className="text-xs text-[var(--text-soft)]">{fmtKickoff(g.commence_time)}</span>
               )}
             </div>
-            <div className="flex items-center justify-between mb-2">
+
+            <div className="grid grid-cols-2 gap-3">
+              {[g.away_team, g.home_team].map((team, tIdx) => {
+                const { city, nick } = splitTeamName(team);
+                const selected = gamePicks[g.id] === team;
+                return (
+                  <button
+                    key={team}
+                    disabled={locked}
+                    onClick={() => selectPick(g.id, team)}
+                    className={
+                      "relative flex flex-col items-center gap-1.5 rounded-xl border-2 px-2 py-4 min-h-[112px] text-center disabled:opacity-60 transition-colors " +
+                      (selected
+                        ? "bg-[var(--accent)] border-[var(--accent)] text-[var(--accent-text)]"
+                        : "border-[var(--highlight)]/60 hover:border-[var(--accent-hover)]")
+                    }
+                  >
+                    {selected && <Check size={16} className="absolute top-2 right-2" />}
+                    <TeamBadge team={team} size={44} />
+                    <span className="leading-tight min-w-0 max-w-full">
+                      <span className={"block text-[11px] truncate " + (selected ? "opacity-80" : "text-[var(--text-soft)]")}>
+                        {city} {tIdx === 0 ? "(uit)" : "(thuis)"}
+                      </span>
+                      <span className="block text-base font-semibold truncate">{nick}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center justify-between mt-3 gap-2">
               <span className="text-xs text-[var(--text-soft)]">{g.spread ? `Spread: ${g.spread}` : "Geen spread"}</span>
               <button
                 onClick={() => toggleDouble(g.id)}
@@ -973,31 +1159,17 @@ function PicksTab({ week, weekGames, weekNum, players, me, picks, savePicks, onR
                   (weeklyCapReached && doubleGameId !== g.id)
                 }
                 className={
-                  "flex items-center gap-1 text-xs px-2 py-1 rounded border disabled:opacity-30 " +
-                  (doubleGameId === g.id ? "bg-[var(--accent)] text-[var(--accent-text)] border-[var(--accent)]" : "border-[var(--highlight)]/60 text-[var(--text-soft)] hover:border-[var(--accent-hover)]")
+                  "flex items-center gap-1.5 text-sm px-3 py-2 rounded-lg border min-h-[40px] disabled:opacity-30 " +
+                  (doubleGameId === g.id ? "bg-[var(--accent)] text-[var(--accent-text)] border-[var(--accent)] font-semibold" : "border-[var(--highlight)]/60 text-[var(--text-soft)] hover:border-[var(--accent-hover)]")
                 }
               >
-                <Flame size={13} />
-                2x punten
+                <Flame size={15} />
+                {doubleGameId === g.id ? "Double point game" : "2x punten"}
               </button>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              {[g.away_team, g.home_team].map((team) => (
-                <button
-                  key={team}
-                  disabled={locked}
-                  onClick={() => selectPick(g.id, team)}
-                  className={
-                    "text-sm px-3 py-2 rounded border text-left disabled:opacity-60 " +
-                    (gamePicks[g.id] === team ? "bg-[var(--accent)] border-[var(--accent)] text-[var(--accent-text)] font-semibold" : "border-[var(--highlight)]/60 hover:border-[var(--accent-hover)]")
-                  }
-                >
-                  {team}
-                </button>
-              ))}
-            </div>
+
             {g.status === "final" && (
-              <div className="mt-2 text-xs text-[var(--text-soft)]">
+              <div className="mt-3 text-xs text-[var(--text-soft)]">
                 Eindstand: {g.away_team} {g.away_score} – {g.home_score} {g.home_team}
               </div>
             )}
@@ -1006,10 +1178,22 @@ function PicksTab({ week, weekGames, weekNum, players, me, picks, savePicks, onR
       </div>
 
       {!locked && (
-        <button onClick={submit} className="mt-5 w-full bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-text)] font-semibold text-sm py-2.5 rounded flex items-center justify-center gap-2">
-          <Check size={16} />
-          Picks opslaan
-        </button>
+        <div className="sticky bottom-20 sm:bottom-4 mt-5 z-20">
+          <button
+            onClick={submit}
+            className={
+              "w-full font-semibold text-base py-3.5 rounded-xl flex items-center justify-center gap-2 shadow-lg transition-colors " +
+              (!allPicked
+                ? "bg-[var(--bg-panel)] text-[var(--text-soft)] border border-[var(--highlight)]/60"
+                : dirty
+                ? "bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-text)]"
+                : "bg-[var(--bg-panel)] text-[var(--accent)] border border-[var(--accent-border)]")
+            }
+          >
+            <Check size={18} />
+            {!allPicked ? `Nog ${remaining} te kiezen` : dirty ? "Picks opslaan" : "Opgeslagen"}
+          </button>
+        </div>
       )}
     </div>
   );
