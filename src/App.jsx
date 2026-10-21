@@ -590,6 +590,16 @@ export default function App() {
     showToast(`Welkom, ${data.name}!`);
   }
 
+  async function resetPin(playerId, newPin) {
+    const { error: updError } = await supabase.from("players").update({ pin: newPin }).eq("id", playerId);
+    if (updError) {
+      showToast("Pincode wijzigen mislukt.");
+      return false;
+    }
+    setPlayers((prev) => prev.map((pl) => (pl.id === playerId ? { ...pl, pin: newPin } : pl)));
+    return true;
+  }
+
   async function savePicks(weekNum, gamePicksMap, doubleGameId) {
     if (!myPlayerId) return;
     const rows = Object.entries(gamePicksMap).map(([gameId, team]) => ({
@@ -742,6 +752,7 @@ export default function App() {
             savePicks={savePicks}
             onRegister={registerPlayer}
             onLogin={loginAs}
+            onResetPin={resetPin}
             showToast={showToast}
           />
         )}
@@ -968,7 +979,7 @@ function TabButton({ icon, label, active, onClick }) {
    Picks tab
 --------------------------------------------------------------- */
 
-function PicksTab({ week, weekGames, weekNum, players, me, picks, savePicks, onRegister, onLogin, showToast }) {
+function PicksTab({ week, weekGames, weekNum, players, me, picks, savePicks, onRegister, onLogin, onResetPin, showToast }) {
   const myExistingPicks = (me && picks.filter((p) => p.week_num === weekNum && p.player_id === me.id)) || [];
   const initialMap = {};
   let initialDouble = null;
@@ -1001,7 +1012,7 @@ function PicksTab({ week, weekGames, weekNum, players, me, picks, savePicks, onR
     );
   }
 
-  if (!me) return <PlayerGate players={players} onRegister={onRegister} onLogin={onLogin} showToast={showToast} />;
+  if (!me) return <PlayerGate players={players} onRegister={onRegister} onLogin={onLogin} onResetPin={onResetPin} showToast={showToast} />;
 
   const locked = isLocked(week);
   const period = periodForWeek(weekNum);
@@ -1199,7 +1210,7 @@ function PicksTab({ week, weekGames, weekNum, players, me, picks, savePicks, onR
   );
 }
 
-function PlayerGate({ players, onRegister, onLogin, showToast }) {
+function PlayerGate({ players, onRegister, onLogin, onResetPin, showToast }) {
   const [mode, setMode] = useState(players.length ? "login" : "register");
 
   if (mode === "register") {
@@ -1217,7 +1228,7 @@ function PlayerGate({ players, onRegister, onLogin, showToast }) {
 
   return (
     <div>
-      <LoginForm players={players} onLogin={onLogin} showToast={showToast} />
+      <LoginForm players={players} onLogin={onLogin} onResetPin={onResetPin} showToast={showToast} />
       <button onClick={() => setMode("register")} className="mt-3 text-xs text-[var(--text-soft)] hover:text-[var(--accent)] underline">
         Nieuwe speler? Meld je hier aan
       </button>
@@ -1225,10 +1236,14 @@ function PlayerGate({ players, onRegister, onLogin, showToast }) {
   );
 }
 
-function LoginForm({ players, onLogin, showToast }) {
+function LoginForm({ players, onLogin, onResetPin, showToast }) {
   const [playerId, setPlayerId] = useState(players[0]?.id || "");
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
+  const [resetMode, setResetMode] = useState(false);
+  const [champ, setChamp] = useState("");
+  const [root, setRoot] = useState("");
+  const [newPin, setNewPin] = useState("");
 
   function submit() {
     const player = players.find((p) => p.id === playerId);
@@ -1241,34 +1256,107 @@ function LoginForm({ players, onLogin, showToast }) {
     showToast(`Welkom terug, ${player.name}!`);
   }
 
+  // Pincode vergeten: bevestig met de twee teams die je bij het aanmelden koos.
+  async function submitReset() {
+    const player = players.find((p) => p.id === playerId);
+    if (!player) return;
+    if (!champ || !root || newPin.length !== 4) {
+      setError("Kies beide teams en geef een nieuwe pincode van 4 cijfers in.");
+      return;
+    }
+    if (player.championship_team !== champ || player.rooting_team !== root) {
+      setError("Die teams komen niet overeen met wat je bij het aanmelden koos.");
+      return;
+    }
+    const ok = await onResetPin(player.id, newPin);
+    if (!ok) return;
+    onLogin(player.id);
+    showToast(`Nieuwe pincode ingesteld. Welkom terug, ${player.name}!`);
+  }
+
+  const fieldClass = "w-full mt-1 bg-emerald-950 border border-[var(--highlight)]/60 rounded px-3 py-2 text-sm";
+
   return (
     <div className="border border-[var(--highlight-soft)] rounded-md p-5 bg-[var(--bg-panel)]/60 space-y-4">
       <h2 style={{ fontFamily: "'Bebas Neue', sans-serif" }} className="text-2xl text-[var(--accent)] flex items-center gap-2">
-        <LogIn size={20} /> Inloggen
+        {resetMode ? <KeyRound size={20} /> : <LogIn size={20} />} {resetMode ? "Nieuwe pincode" : "Inloggen"}
       </h2>
       <div>
         <label className="text-xs text-[var(--text-soft)]">Wie ben jij?</label>
-        <select value={playerId} onChange={(e) => setPlayerId(e.target.value)} className="w-full mt-1 bg-emerald-950 border border-[var(--highlight)]/60 rounded px-3 py-2 text-sm">
+        <select value={playerId} onChange={(e) => setPlayerId(e.target.value)} className={fieldClass}>
           {players.map((p) => (
             <option key={p.id} value={p.id}>{p.name}</option>
           ))}
         </select>
       </div>
-      <div>
-        <label className="text-xs text-[var(--text-soft)]">Pincode</label>
-        <input
-          type="password"
-          value={pin}
-          onChange={(e) => setPin(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && submit()}
-          className="w-full mt-1 bg-emerald-950 border border-[var(--highlight)]/60 rounded px-3 py-2 text-sm"
-          placeholder="4 cijfers"
-        />
-      </div>
-      {error && <p className="text-red-400 text-xs">{error}</p>}
-      <button onClick={submit} className="w-full bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-text)] font-semibold text-sm py-2.5 rounded">
-        Inloggen
-      </button>
+
+      {!resetMode ? (
+        <>
+          <div>
+            <label className="text-xs text-[var(--text-soft)]">Pincode</label>
+            <input
+              type="password"
+              value={pin}
+              onChange={(e) => setPin(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && submit()}
+              className={fieldClass}
+              placeholder="4 cijfers"
+            />
+          </div>
+          {error && <p className="text-red-400 text-xs">{error}</p>}
+          <button onClick={submit} className="w-full bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-text)] font-semibold text-sm py-2.5 rounded">
+            Inloggen
+          </button>
+          <button
+            onClick={() => { setResetMode(true); setError(""); }}
+            className="text-xs text-[var(--text-soft)] hover:text-[var(--accent)] underline"
+          >
+            Pincode vergeten?
+          </button>
+        </>
+      ) : (
+        <>
+          <p className="text-xs text-[var(--text-soft)]">
+            Bevestig dat jij het bent met de teams die je bij het aanmelden koos, en kies een nieuwe pincode.
+          </p>
+          <div>
+            <label className="text-xs text-[var(--text-soft)]">Championship team</label>
+            <select value={champ} onChange={(e) => setChamp(e.target.value)} className={fieldClass}>
+              <option value="">Kies een team…</option>
+              {TEAMS.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-[var(--text-soft)]">Rooting team</label>
+            <select value={root} onChange={(e) => setRoot(e.target.value)} className={fieldClass}>
+              <option value="">Kies een team…</option>
+              {TEAMS.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-[var(--text-soft)]">Nieuwe pincode (4 cijfers)</label>
+            <input
+              type="password"
+              inputMode="numeric"
+              value={newPin}
+              onChange={(e) => setNewPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
+              onKeyDown={(e) => e.key === "Enter" && submitReset()}
+              className={fieldClass}
+              placeholder="Bv. 1234"
+            />
+          </div>
+          {error && <p className="text-red-400 text-xs">{error}</p>}
+          <button onClick={submitReset} className="w-full bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-text)] font-semibold text-sm py-2.5 rounded">
+            Nieuwe pincode opslaan
+          </button>
+          <button
+            onClick={() => { setResetMode(false); setError(""); }}
+            className="text-xs text-[var(--text-soft)] hover:text-[var(--accent)] underline"
+          >
+            Terug naar inloggen
+          </button>
+        </>
+      )}
     </div>
   );
 }
