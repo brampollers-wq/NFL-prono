@@ -484,6 +484,7 @@ export default function App() {
   const [games, setGames] = useState([]);
   const [picks, setPicks] = useState([]);
   const [rootingResults, setRootingResults] = useState([]);
+  const [extensions, setExtensions] = useState([]);
   const [myPlayerId, setMyPlayerId] = useState(() => localStorage.getItem("myPlayerId") || null);
   const [tab, setTab] = useState("picks");
   const [activeWeek, setActiveWeek] = useState(1);
@@ -520,12 +521,13 @@ export default function App() {
   async function loadAll() {
     setLoading(true);
     try {
-      const [playersRes, weeksRes, gamesRes, picksRes, rootingRes] = await Promise.all([
+      const [playersRes, weeksRes, gamesRes, picksRes, rootingRes, extRes] = await Promise.all([
         supabase.from("players").select("*"),
         supabase.from("weeks").select("*").order("week_num"),
         supabase.from("games").select("*"),
         supabase.from("picks").select("*"),
         supabase.from("rooting_results").select("*"),
+        supabase.from("pick_extensions").select("*"),
       ]);
       if (playersRes.error) throw playersRes.error;
       if (weeksRes.error) throw weeksRes.error;
@@ -538,6 +540,8 @@ export default function App() {
       setGames(gamesRes.data);
       setPicks(picksRes.data);
       setRootingResults(rootingRes.data);
+      // Uitzonderingen zijn optioneel: bij een fout gewoon geen uitzonderingen.
+      setExtensions(extRes.error ? [] : extRes.data);
 
       const weekNums = weeksRes.data.map((w) => w.week_num);
       if (weekNums.length) setActiveWeek(Math.max(...weekNums));
@@ -554,6 +558,7 @@ export default function App() {
       .on("postgres_changes", { event: "*", schema: "public", table: "picks" }, loadAll)
       .on("postgres_changes", { event: "*", schema: "public", table: "rooting_results" }, loadAll)
       .on("postgres_changes", { event: "*", schema: "public", table: "weeks" }, loadAll)
+      .on("postgres_changes", { event: "*", schema: "public", table: "pick_extensions" }, loadAll)
       .subscribe();
     channelRef.current = channel;
   }
@@ -753,6 +758,7 @@ export default function App() {
             onRegister={registerPlayer}
             onLogin={loginAs}
             onResetPin={resetPin}
+            extensions={extensions}
             showToast={showToast}
           />
         )}
@@ -979,7 +985,7 @@ function TabButton({ icon, label, active, onClick }) {
    Picks tab
 --------------------------------------------------------------- */
 
-function PicksTab({ week, weekGames, weekNum, players, me, picks, savePicks, onRegister, onLogin, onResetPin, showToast }) {
+function PicksTab({ week, weekGames, weekNum, players, me, picks, savePicks, onRegister, onLogin, onResetPin, extensions = [], showToast }) {
   const myExistingPicks = (me && picks.filter((p) => p.week_num === weekNum && p.player_id === me.id)) || [];
   const initialMap = {};
   let initialDouble = null;
@@ -1014,9 +1020,16 @@ function PicksTab({ week, weekGames, weekNum, players, me, picks, savePicks, onR
 
   if (!me) return <PlayerGate players={players} onRegister={onRegister} onLogin={onLogin} onResetPin={onResetPin} showToast={showToast} />;
 
-  const locked = isLocked(week);
+  const weekLocked = isLocked(week);
+  // Uitzondering: een speler met een "extensie" mag na de weekdeadline nog kiezen,
+  // maar enkel voor wedstrijden die nog niet begonnen zijn.
+  const extended = weekLocked && extensions.some((e) => e.player_id === me.id && e.week_num === weekNum);
+  const locked = weekLocked && !extended;
+  const gameClosed = (g) =>
+    locked || (extended && (g.status === "final" || (g.commence_time && new Date(g.commence_time).getTime() <= Date.now())));
+  const openGames = weekGames.filter((g) => !gameClosed(g));
   const period = periodForWeek(weekNum);
-  const allPicked = weekGames.every((g) => gamePicks[g.id]);
+  const allPicked = openGames.every((g) => gamePicks[g.id]);
 
   let periodUsedElsewhere = false;
   if (period) {
@@ -1033,12 +1046,14 @@ function PicksTab({ week, weekGames, weekNum, players, me, picks, savePicks, onR
   const weeklyCapReached = othersWithDoubleThisWeek >= 2;
 
   function selectPick(gameId, team) {
-    if (locked) return;
+    const g = weekGames.find((x) => x.id === gameId);
+    if (!g || gameClosed(g)) return;
     setGamePicks((prev) => ({ ...prev, [gameId]: team }));
   }
 
   function toggleDouble(gameId) {
-    if (locked || !allPicked || periodUsedElsewhere || !period) return;
+    const g = weekGames.find((x) => x.id === gameId);
+    if (!g || gameClosed(g) || !allPicked || periodUsedElsewhere || !period) return;
     if (weeklyCapReached && doubleGameId !== gameId) return;
     setDoubleGameId((prev) => (prev === gameId ? null : gameId));
   }
@@ -1048,7 +1063,10 @@ function PicksTab({ week, weekGames, weekNum, players, me, picks, savePicks, onR
       showToast("Kies eerst een winnaar voor elke wedstrijd.");
       return;
     }
-    savePicks(weekNum, gamePicks, doubleGameId);
+    // Enkel nog openstaande wedstrijden bewaren (voor een uitzondering zijn de rest al gestart).
+    const toSave = {};
+    for (const g of openGames) if (gamePicks[g.id]) toSave[g.id] = gamePicks[g.id];
+    savePicks(weekNum, extended ? toSave : gamePicks, doubleGameId && openGames.some((g) => g.id === doubleGameId) ? doubleGameId : null);
   }
 
   const savedPicksMap = {};
@@ -1057,8 +1075,8 @@ function PicksTab({ week, weekGames, weekNum, players, me, picks, savePicks, onR
   const dirty =
     weekGames.some((g) => (gamePicks[g.id] || null) !== (savedPicksMap[g.id] || null)) ||
     (doubleGameId || null) !== savedDouble;
-  const pickedCount = weekGames.filter((g) => gamePicks[g.id]).length;
-  const remaining = weekGames.length - pickedCount;
+  const pickedCount = openGames.filter((g) => gamePicks[g.id]).length;
+  const remaining = openGames.length - pickedCount;
 
   return (
     <div>
@@ -1086,18 +1104,24 @@ function PicksTab({ week, weekGames, weekNum, players, me, picks, savePicks, onR
         </div>
       )}
 
+      {extended && (
+        <div className="mb-4 text-sm bg-[var(--bg-panel)]/90 border border-[var(--accent-border)] rounded-lg px-3 py-2 text-[var(--accent)]">
+          De deadline is verstreken, maar jij mag nog kiezen voor de wedstrijden die nog niet begonnen zijn.
+        </div>
+      )}
+
       {!locked && (
         <div className="mb-4">
           <div className="flex items-center justify-between text-xs text-[var(--text-soft)] mb-1.5">
             <span>
-              {pickedCount} van {weekGames.length} gekozen
+              {pickedCount} van {openGames.length} gekozen
             </span>
             <span>{allPicked ? (dirty ? "nog niet opgeslagen" : "opgeslagen") : `nog ${remaining} te kiezen`}</span>
           </div>
           <div className="h-2 rounded-full bg-[var(--highlight-soft)] overflow-hidden">
             <div
               className="h-full rounded-full bg-[var(--accent)] transition-all duration-300"
-              style={{ width: `${(pickedCount / weekGames.length) * 100}%` }}
+              style={{ width: `${openGames.length ? (pickedCount / openGames.length) * 100 : 0}%` }}
             />
           </div>
         </div>
@@ -1124,8 +1148,10 @@ function PicksTab({ week, weekGames, weekNum, players, me, picks, savePicks, onR
                   </span>
                 )}
               </span>
-              {g.commence_time && (
-                <span className="text-xs text-[var(--text-soft)]">{fmtKickoff(g.commence_time)}</span>
+              {extended && gameClosed(g) ? (
+                <span className="text-xs text-[var(--text-soft)] flex items-center gap-1"><Lock size={11} /> gestart</span>
+              ) : (
+                g.commence_time && <span className="text-xs text-[var(--text-soft)]">{fmtKickoff(g.commence_time)}</span>
               )}
             </div>
 
@@ -1136,7 +1162,7 @@ function PicksTab({ week, weekGames, weekNum, players, me, picks, savePicks, onR
                 return (
                   <button
                     key={team}
-                    disabled={locked}
+                    disabled={gameClosed(g)}
                     onClick={() => selectPick(g.id, team)}
                     className={
                       "relative flex flex-col items-center gap-1.5 rounded-xl border-2 px-2 py-4 min-h-[112px] text-center disabled:opacity-60 transition-colors " +
@@ -1163,7 +1189,7 @@ function PicksTab({ week, weekGames, weekNum, players, me, picks, savePicks, onR
               <button
                 onClick={() => toggleDouble(g.id)}
                 disabled={
-                  locked ||
+                  gameClosed(g) ||
                   !allPicked ||
                   periodUsedElsewhere ||
                   !period ||
